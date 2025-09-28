@@ -10,6 +10,8 @@ import qualified Synthesizer.Generic.Filter.NonRecursive as Filt (envelope)
 import qualified Synthesizer.Generic.Control as Con (line, constant)
 import qualified Synthesizer.Generic.Signal as Sig (mix)
 
+import Instrument (bell)
+
 import Data.Maybe
 
 import Debug.Trace (trace)
@@ -25,29 +27,32 @@ sineFrequency = 1001
 modulateOp = 1002
 mixOp = 1003
 envelope = 1004
+bellMarker = 1005
 
-data StreamCommand = InsertStreamAtIndex Int GeneratorCommand
-                   | DeleteStreamAtIndex Int
-                   | InsertAndForget GeneratorCommand
+data StreamCommand = InsertStreamAtIndex !Int !GeneratorCommand
+                   | DeleteStreamAtIndex !Int
+                   | InsertAndForget !GeneratorCommand
                    deriving Show
 
 data GeneratorCommand = SineWave
-                      | SineWaveWithFrequency ElementType
-                      | Modulate GeneratorCommand GeneratorCommand
-                      | Mix GeneratorCommand GeneratorCommand
-                      | Envelope ElementType ElementType ElementType
+                      | SineWaveWithFrequency !ElementType
+                      | Modulate !GeneratorCommand !GeneratorCommand
+                      | Mix !GeneratorCommand !GeneratorCommand
+                      | Envelope !ElementType !ElementType !ElementType
+                      | Bell !ElementType
                       | NoGenerator deriving Show
 
 eventGeneratorMap = Map.fromList [(insertAtIndex, \(index:restArgs) -> InsertStreamAtIndex (round index) $ createGeneratorCommandFromInput restArgs),
                                   (insertAndForget, InsertAndForget . createGeneratorCommandFromInput),
-                                  (stopAtIndex, DeleteStreamAtIndex . round  . head)
+                                  (stopAtIndex, DeleteStreamAtIndex . round . head)
                                   ]
 
 generatorCommandMap = Map.fromList [(sineGenerator, (,) SineWave),
                                     (sineFrequency, \(f:rest) -> (SineWaveWithFrequency f, rest)),
                                      (modulateOp, parseBinaryOperation Modulate),
                                      (mixOp, parseBinaryOperation Mix),
-                                     (envelope, \(attackT:peakAmp:descentT:rest) -> (Envelope attackT peakAmp descentT, rest))
+                                     (envelope, \(attackT:peakAmp:descentT:rest) -> (Envelope attackT peakAmp descentT, rest)),
+                                     (bellMarker, \(f:rest) -> (Bell f, rest))
                                    ] :: Map.Map Int ([ElementType] -> (GeneratorCommand, [ElementType]))
 
 parseBinaryOperation :: (GeneratorCommand -> GeneratorCommand -> GeneratorCommand) -> [ElementType] -> (GeneratorCommand, [ElementType])
@@ -86,6 +91,7 @@ createStreamFromGeneratorCommand generatorCommand =
     Mix gen0 gen1 -> Sig.mix (createStreamFromGeneratorCommand gen0) (createStreamFromGeneratorCommand gen1)
     Modulate gen0 gen1 -> Filt.envelope (createStreamFromGeneratorCommand gen0)  (createStreamFromGeneratorCommand gen1)
     Envelope attackT peakAmp descentT -> ll (round $ fromIntegral sampleRate * attackT) (0.0, peakAmp) <> ll (round $ fromIntegral sampleRate * descentT) (peakAmp, 1.0) <> Con.constant defaultLazySize 1.0
+    Bell frequency -> bell frequency
     NoGenerator -> zeroSignal
 
 updateStoreFromCommand :: StreamCommand -> StreamStateStore -> StreamStateStore
@@ -94,7 +100,7 @@ updateStoreFromCommand command store =
     InsertStreamAtIndex index generatorCommand -> trace ("Inserting stream at index " ++ show index) $ insertStream index stream store
       where
         stream = createStreamFromGeneratorCommand generatorCommand
-    DeleteStreamAtIndex index -> trace ("Deleting stream at index " ++ show index) $ deleteStream index store
+    DeleteStreamAtIndex index -> deleteStream index store
     InsertAndForget generatorCommand -> insertUnmanagedStream stream store
       where
         stream = createStreamFromGeneratorCommand generatorCommand

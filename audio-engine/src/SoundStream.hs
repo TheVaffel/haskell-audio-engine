@@ -8,7 +8,8 @@ import Synthesizer.Generic.Signal (defaultLazySize)
 import qualified Synthesizer.Generic.Signal as SigG
 import qualified Synthesizer.Generic.Cut as Cut
 
-type SoundStream = SigSt.T Float
+type ElementType = Float
+type SoundStream = SigSt.T ElementType
 
 sampleRate = 44100 :: Int
 

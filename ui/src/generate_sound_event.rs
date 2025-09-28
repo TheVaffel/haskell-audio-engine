@@ -12,6 +12,7 @@ enum NumericCommand {
     ModulateOp = 1002,
     MixOp = 1003,
     Envelope = 1004,
+    Bell = 1005,
 }
 
 trait AudioCommand {
@@ -30,6 +31,7 @@ enum Generator<'a> {
     ModulateOp(&'a Generator<'a>, &'a Generator<'a>),
     MixOp(&'a Generator<'a>, &'a Generator<'a>),
     Envelope(f32, f32, f32),
+    Bell(f32),
 }
 
 impl<'a> AudioCommand for Command<'a> {
@@ -76,6 +78,10 @@ impl<'a> AudioCommand for Generator<'a> {
                 result.push(*peak_amp);
                 result.push(*descent_t);
             }
+            Generator::Bell(freq) => {
+                result.push(NumericCommand::Bell as u32 as ElementType);
+                result.push(*freq);
+            }
         }
     }
 }
@@ -119,6 +125,12 @@ pub fn enveloped_double_sine_at_index(
     let generator = Generator::ModulateOp(&Generator::Envelope(0.01, 8.0, 0.05), &double_sine);
 
     let command = Command::InsertAtIndex(index, &generator);
+    write_command(&command, event_buffer);
+}
+
+pub fn generate_bell(_index: u32, frequency: ElementType, event_buffer: &mut CircularBuffer) -> () {
+    let generator = Generator::Bell(frequency);
+    let command = Command::InsertAndForget(&generator);
     write_command(&command, event_buffer);
 }
 

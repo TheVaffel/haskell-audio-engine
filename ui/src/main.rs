@@ -1,19 +1,17 @@
 use circular_buffer::CircularBuffer;
 use generate_sound_event::{
-    enveloped_double_sine_at_index, generate_and_forget_sine, generate_sine_at_index,
-    generate_sine_at_index_with_frequency, stop_at_index,
+    enveloped_double_sine_at_index, generate_and_forget_sine, generate_bell,
+    generate_sine_at_index, generate_sine_at_index_with_frequency, stop_at_index,
 };
 use std::thread;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::keyboard::{Key, PhysicalKey};
+use winit::keyboard::{Key, KeyCode, NativeKeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
 mod circular_buffer;
 mod generate_sound_event;
-
-const MAX_SOUND_INDEX: u32 = 0;
 
 unsafe extern "C" {
     fn play_hs(
@@ -29,7 +27,7 @@ unsafe extern "C" {
 struct App {
     window: Option<Window>,
     sound_event_buffer: Box<CircularBuffer>,
-    sound_index: u32,
+    shift_pressed: bool,
 }
 
 impl App {
@@ -37,7 +35,7 @@ impl App {
         Self {
             window: None,
             sound_event_buffer,
-            sound_index: 0,
+            shift_pressed: false,
         }
     }
 }
@@ -83,6 +81,11 @@ impl ApplicationHandler for App {
                     event_loop.exit();
                 }
 
+                if event.physical_key == PhysicalKey::Code(winit::keyboard::KeyCode::ShiftLeft) {
+                    self.shift_pressed = event.state.is_pressed();
+                    return;
+                }
+
                 if event.state == ElementState::Pressed {
                     if event.repeat || synthetic {
                         return;
@@ -92,25 +95,35 @@ impl ApplicationHandler for App {
                         return generate_and_forget_sine(self.sound_event_buffer.as_mut());
                     }
 
-                    let maybe_index = find_index_for_key_event(event.logical_key);
+                    let maybe_index = find_index_for_key_event(event.physical_key);
+                    println!("Physical key: {:?}", event.physical_key);
                     return match maybe_index {
                         Some(index) => {
                             let frequency = 440.0 * 2.0f32.powf(index as f32 / 12.0);
                             /* generate_sine_at_index_with_frequency(
+                                                index as u32,
+                                                frequency,
+                                                &mut self.sound_event_buffer,
+                            ); */
+
+                            if !self.shift_pressed {
+                                enveloped_double_sine_at_index(
                                     index as u32,
                                     frequency,
                                     &mut self.sound_event_buffer,
-                            ); */
-                            enveloped_double_sine_at_index(
-                                index as u32,
-                                frequency,
-                                &mut self.sound_event_buffer,
-                            );
+                                );
+                            } else {
+                                generate_bell(
+                                    index as u32,
+                                    frequency,
+                                    &mut self.sound_event_buffer,
+                                );
+                            }
                         }
                         None => (),
                     };
                 } else if event.state == ElementState::Released {
-                    let maybe_index = find_index_for_key_event(event.logical_key);
+                    let maybe_index = find_index_for_key_event(event.physical_key);
 
                     println!(">>>> Released! Found maybe_index {:?}", maybe_index);
 
@@ -125,24 +138,24 @@ impl ApplicationHandler for App {
     }
 }
 
-fn find_index_for_key_event(key: Key) -> Option<usize> {
+fn find_index_for_key_event(key: PhysicalKey) -> Option<usize> {
     let char_list = [
-        (0, "a"),
-        (2, "o"),
-        (4, "e"),
-        (5, "u"),
-        (7, "i"),
-        (9, "d"),
-        (11, "h"),
-        (12, "t"),
-        (14, "n"),
-        (16, "s"),
-        (17, "-"),
-        (19, "\\"),
+        (0, PhysicalKey::Code(KeyCode::KeyA)),
+        (2, PhysicalKey::Code(KeyCode::KeyS)),
+        (4, PhysicalKey::Code(KeyCode::KeyD)),
+        (5, PhysicalKey::Code(KeyCode::KeyF)),
+        (7, PhysicalKey::Code(KeyCode::KeyG)),
+        (9, PhysicalKey::Code(KeyCode::KeyH)),
+        (11, PhysicalKey::Code(KeyCode::KeyJ)),
+        (12, PhysicalKey::Code(KeyCode::KeyK)),
+        (14, PhysicalKey::Code(KeyCode::KeyL)),
+        (16, PhysicalKey::Code(KeyCode::Semicolon)),
+        (17, PhysicalKey::Code(KeyCode::Quote)),
+        (19, PhysicalKey::Code(KeyCode::Backslash)),
     ];
     let pair = char_list
         .iter()
-        .find(|(_, ch)| key == Key::Character((**ch).into()))
+        .find(|(_, ch)| key == *ch)
         .map(|(ind, _)| *ind);
 
     pair
