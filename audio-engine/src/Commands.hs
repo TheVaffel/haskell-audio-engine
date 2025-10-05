@@ -101,6 +101,6 @@ updateStoreFromCommand command store =
       where
         stream = createStreamFromGeneratorCommand generatorCommand
     DeleteStreamAtIndex index -> deleteStream index store
-    InsertAndForget generatorCommand -> insertUnmanagedStream stream store
+    InsertAndForget generatorCommand -> insertUnmanagedStream (Cut.take (10 * sampleRate) stream) store
       where
         stream = createStreamFromGeneratorCommand generatorCommand
