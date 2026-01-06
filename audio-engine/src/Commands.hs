@@ -2,13 +2,13 @@ module Commands (updateStoreFromEvent) where
 
 import CircularBuffer (ElementType)
 import SoundStream (SoundStream, sampleRate)
-import StreamStateStore (StreamStateStore, insertStream, deleteStream, insertUnmanagedStream)
+import StreamStateStore (StreamStateStore, insertStream, deleteStream, insertUnmanagedStream, markClosed)
 import RawStream (sineWave, sineWaveWithFrequency, zeroSignal)
 
 import qualified Synthesizer.Generic.Cut as Cut (take)
 import qualified Synthesizer.Generic.Filter.NonRecursive as Filt (envelope)
 import qualified Synthesizer.Generic.Control as Con (line, constant)
-import qualified Synthesizer.Generic.Signal as Sig (mix)
+import qualified Synthesizer.Generic.Signal as Sig (mix, zipWith)
 
 import Instrument (bell)
 
@@ -21,17 +21,20 @@ import Synthesizer.Generic.Signal (defaultLazySize)
 insertAtIndex = 2
 insertAndForget = 3
 stopAtIndex = 4
+exit = 5
 
 sineGenerator = 1000
 sineFrequency = 1001
 modulateOp = 1002
 mixOp = 1003
 envelope = 1004
-bellMarker = 1005
+volumeMarker = 1005
+bellMarker = 2001
 
 data StreamCommand = InsertStreamAtIndex !Int !GeneratorCommand
                    | DeleteStreamAtIndex !Int
                    | InsertAndForget !GeneratorCommand
+                   | Exit
                    deriving Show
 
 data GeneratorCommand = SineWave
@@ -39,12 +42,14 @@ data GeneratorCommand = SineWave
                       | Modulate !GeneratorCommand !GeneratorCommand
                       | Mix !GeneratorCommand !GeneratorCommand
                       | Envelope !ElementType !ElementType !ElementType
+                      | Volume !ElementType !GeneratorCommand
                       | Bell !ElementType
                       | NoGenerator deriving Show
 
 eventGeneratorMap = Map.fromList [(insertAtIndex, \(index:restArgs) -> InsertStreamAtIndex (round index) $ createGeneratorCommandFromInput restArgs),
                                   (insertAndForget, InsertAndForget . createGeneratorCommandFromInput),
-                                  (stopAtIndex, DeleteStreamAtIndex . round . head)
+                                  (stopAtIndex, DeleteStreamAtIndex . round . head),
+                                  (exit, const Exit)
                                   ]
 
 generatorCommandMap = Map.fromList [(sineGenerator, (,) SineWave),
@@ -52,6 +57,9 @@ generatorCommandMap = Map.fromList [(sineGenerator, (,) SineWave),
                                      (modulateOp, parseBinaryOperation Modulate),
                                      (mixOp, parseBinaryOperation Mix),
                                      (envelope, \(attackT:peakAmp:descentT:rest) -> (Envelope attackT peakAmp descentT, rest)),
+                                     (volumeMarker, \(f:commandOp:r0) ->
+                                         let (command, rest) = (generatorCommandMap Map.! round commandOp) r0 in
+                                           (Volume f command, rest)),
                                      (bellMarker, \(f:rest) -> (Bell f, rest))
                                    ] :: Map.Map Int ([ElementType] -> (GeneratorCommand, [ElementType]))
 
@@ -82,7 +90,7 @@ createGeneratorCommandFromInput (commandTypeF:restArgs) =
     maybe NoGenerator fst maybeGenerator
 
 
-ll = Con.line defaultLazySize
+line = Con.line defaultLazySize
 
 createStreamFromGeneratorCommand generatorCommand =
   case generatorCommand of
@@ -90,7 +98,8 @@ createStreamFromGeneratorCommand generatorCommand =
     SineWaveWithFrequency freq -> sineWaveWithFrequency freq
     Mix gen0 gen1 -> Sig.mix (createStreamFromGeneratorCommand gen0) (createStreamFromGeneratorCommand gen1)
     Modulate gen0 gen1 -> Filt.envelope (createStreamFromGeneratorCommand gen0)  (createStreamFromGeneratorCommand gen1)
-    Envelope attackT peakAmp descentT -> ll (round $ fromIntegral sampleRate * attackT) (0.0, peakAmp) <> ll (round $ fromIntegral sampleRate * descentT) (peakAmp, 1.0) <> Con.constant defaultLazySize 1.0
+    Envelope attackT peakAmp descentT -> line (round $ fromIntegral sampleRate * attackT) (0.0, peakAmp) <> line (round $ fromIntegral sampleRate * descentT) (peakAmp, 1.0) <> Con.constant defaultLazySize 1.0
+    Volume volume gen0 -> Sig.zipWith (*) (Con.constant defaultLazySize volume) (createStreamFromGeneratorCommand gen0)
     Bell frequency -> bell frequency
     NoGenerator -> zeroSignal
 
@@ -104,3 +113,4 @@ updateStoreFromCommand command store =
     InsertAndForget generatorCommand -> insertUnmanagedStream (Cut.take (10 * sampleRate) stream) store
       where
         stream = createStreamFromGeneratorCommand generatorCommand
+    Exit -> markClosed store

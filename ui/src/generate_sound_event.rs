@@ -7,6 +7,7 @@ enum NumericCommand {
     InsertAtIndex = 2,
     InsertAndForget = 3,
     StopAtIndex = 4,
+    Exit = 5,
     SineGenerator = 1000,
     SineGeneratorWithFrequency = 1001,
     ModulateOp = 1002,
@@ -23,6 +24,7 @@ enum Command<'a> {
     InsertAtIndex(u32, &'a Generator<'a>),
     InsertAndForget(&'a Generator<'a>),
     StopAtIndex(u32),
+    Exit,
 }
 
 enum Generator<'a> {
@@ -49,6 +51,9 @@ impl<'a> AudioCommand for Command<'a> {
             Command::StopAtIndex(index) => {
                 result.push(NumericCommand::StopAtIndex as u32 as ElementType);
                 result.push(*index as ElementType);
+            }
+            Command::Exit => {
+                result.push(NumericCommand::Exit as u32 as ElementType);
             }
         }
     }
@@ -141,5 +146,10 @@ pub fn generate_sine_at_index_with_frequency(
 ) -> () {
     let sine_with_freq = Generator::SineWithFrequency(frequency);
     let command = Command::InsertAtIndex(index, &sine_with_freq);
+    write_command(&command, event_buffer);
+}
+
+pub fn close_stream(event_buffer: &mut CircularBuffer) -> () {
+    let command = Command::Exit;
     write_command(&command, event_buffer);
 }
