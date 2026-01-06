@@ -8,16 +8,17 @@ import Synthesizer.Generic.Signal (defaultLazySize)
 
 import Synthesizer.Basic.Phase (fromRepresentative)
 import RawStream (sineWave, sineWaveWithFrequency)
+import Data.Foldable1 (Foldable1(toNonEmpty))
+import qualified Synthesizer.Generic.Cut as Cut
 
 
 bell :: ElementType -> SoundStream
 bell frequency = let halfLife = 0.5
                      sampleRateF = fromIntegral sampleRate
-     in SigG.zipWith3 (\x y z -> (x + y + z) / 3)
-        (bellHarmonic sampleRateF 1.0 halfLife frequency)
-        (bellHarmonic sampleRateF 4.0 halfLife frequency)
-        (bellHarmonic sampleRateF 7.0 halfLife frequency)
-
+                     indices = [1.0, 2.0, 2.4, 3.0, 4.0]
+                     streams = foldl1 SigG.mix $ map (\index -> bellHarmonic sampleRateF index halfLife frequency) indices
+                     lenF = (fromIntegral . length) indices
+     in Cut.take (3 * sampleRate) $ SigG.map (/ lenF) streams
 bellHarmonic :: ElementType -> ElementType -> ElementType -> ElementType -> SoundStream
 bellHarmonic sampleRate n halfLife freq =
     SigG.zipWith (*) (Osci.freqModSine (fromRepresentative 0)

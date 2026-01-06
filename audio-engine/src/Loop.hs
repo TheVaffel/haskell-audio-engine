@@ -29,4 +29,5 @@ getEventFromCircularBuffer circularBuffer = do
     Just eventSize <- fmap round <$> peekElement circularBuffer
     -- Remove element describing size
     sizeElement <- peekElement circularBuffer
-    fmap tail <$> extractElements eventSize circularBuffer
+    elements <- extractElements eventSize circularBuffer
+    return $ fmap tail elements

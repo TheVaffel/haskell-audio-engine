@@ -1,4 +1,4 @@
-module StreamStateStore (StreamStateStore, empty, insertStream, deleteStream, insertUnmanagedStream, getSoundStreamAndAdvance) where
+module StreamStateStore (StreamStateStore, empty, insertStream, deleteStream, insertUnmanagedStream, getSoundStreamAndAdvance, markClosed, closed) where
 
 import StreamState (StreamState, defaultFadeSize, fromStream, crossFadeState, fadeOutState, isEmpty, advance)
 
@@ -16,13 +16,14 @@ import Debug.Trace
 
 data StreamStateStore = StreamStateStore {
   streamMap :: Map.Map Int StreamState, -- Map of global sounds with filtered state
-  unmanagedStreams :: SoundStream -- Map of a stream with "unmanaged" sound streams.
+  unmanagedStreams :: SoundStream, -- Map of a stream with "unmanaged" sound streams.
     -- These should not last longer than at most 10 seconds.
     -- Does not require further follow-up from controller
+  closed :: Bool
   }
 
 empty :: StreamStateStore
-empty = StreamStateStore { streamMap = Map.empty, unmanagedStreams = zeroSignal }
+empty = StreamStateStore { streamMap = Map.empty, unmanagedStreams = zeroSignal, closed = False }
 
 insertStream :: Int -> SoundStream -> StreamStateStore -> StreamStateStore
 insertStream index stream store =
@@ -32,7 +33,7 @@ insertStream index stream store =
       Just previousStreamState -> let
         newStreamState = crossFadeState defaultFadeSize previousStreamState (fromStream stream)
         in
-        trace "Cross-fading with previous signal and index" $ store { streamMap = Map.insert index newStreamState (streamMap store) }
+        store { streamMap = Map.insert index newStreamState (streamMap store) }
       Nothing -> store { streamMap = Map.insert index (fromStream stream) (streamMap store) }
 
 
@@ -44,9 +45,12 @@ deleteStream index store =
       Nothing -> store
       Just previousStreamState ->
         if isEmpty previousStreamState then
-          trace ("Trashing state now") $ store { streamMap = Map.delete index (streamMap store) }
+          store { streamMap = Map.delete index (streamMap store) }
         else
-          trace ("Fading out state now with fade size " ++ show defaultFadeSize) $ store { streamMap = Map.insert index (fadeOutState defaultFadeSize previousStreamState) (streamMap store) }
+          store { streamMap = Map.insert index (fadeOutState defaultFadeSize previousStreamState) (streamMap store) }
+
+markClosed :: StreamStateStore -> StreamStateStore
+markClosed store = store { closed = True }
 
 insertUnmanagedStream :: SoundStream -> StreamStateStore -> StreamStateStore
 insertUnmanagedStream stream store = store { unmanagedStreams = unmanagedStreams store `mix` stream }

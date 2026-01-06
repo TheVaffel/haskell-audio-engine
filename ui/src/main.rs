@@ -78,6 +78,7 @@ impl ApplicationHandler for App {
             } => {
                 if event.physical_key == PhysicalKey::Code(winit::keyboard::KeyCode::Escape) {
                     println!("Escape was pressed; stopping");
+
                     event_loop.exit();
                 }
 

@@ -3,7 +3,7 @@ module PlayInterleave (playWithInterleavedStoreUpdates) where
 import SoundStream (SoundStream, sampleRate, interactiveBufferSize)
 
 import Utils (applyMaybe)
-import StreamStateStore (StreamStateStore, empty, getSoundStreamAndAdvance)
+import StreamStateStore (StreamStateStore, empty, closed, getSoundStreamAndAdvance)
 
 import qualified Sound.Sox.Play as Play
 
@@ -25,18 +25,13 @@ import Control.Monad (when)
 
 ioInterleave :: (SoundStream -> IO ()) -> (StreamStateStore -> IO StreamStateStore) -> StreamStateStore -> IO ()
 ioInterleave handler updateStore store  = do
-  -- additionalOutput <- io
   updatedStore <- updateStore store
-  let (signalFromStore, advancedStore) = getSoundStreamAndAdvance interactiveBufferSize updatedStore -- Cut.take interactiveBufferSize (getSoundStream newStore)
-  -- let (immediateOutputSignal, restSignal) = Cut.splitAt interactiveBufferSize mixedSignal
+  let (signalFromStore, advancedStore) = getSoundStreamAndAdvance interactiveBufferSize updatedStore
   handler signalFromStore
-  ioInterleave handler updateStore advancedStore
-
-{- playInterleave :: IO (Maybe SoundStream) -> SoundStream -> IO ExitCode
-playInterleave io =
-  Play.simple ioAndHput SoxOpt.none sampleRate
-  where ioAndHput handle = ioInterleave (SigSt.hPut handle) io -}
-
+  if closed advancedStore then
+    return ()
+    else
+    ioInterleave handler updateStore advancedStore
 {-
 Play a sound stream interleaved with IO actions at a pre-defined interval
 -}
@@ -47,12 +42,3 @@ playWithInterleavedStoreUpdates updateStore = do
     initialStore = empty
     sink = AlsaPlay.makeSink AlsaPlay.defaultDevice (0.02::Float) sampleRate
     ioAndPut handle = ioInterleave (AlsaPlay.writeLazy sink handle) updateStore initialStore
-
-{- play :: SoundStream -> IO ()
-play = fmap void $ Play.simple SigSt.hPut SoxOpt.none sampleRate
-
-
-playAlsa :: SoundStream -> IO ()
-playAlsa stream = do
-  let sink = AlsaPlay.makeSink AlsaPlay.defaultDevice (0.02::Float) sampleRate
-  AlsaPlay.auto sink stream -}

@@ -35,8 +35,6 @@ constructCircularBuffer buffer bufferSize readIndex writeIndex =
 getBuffer :: CircularBuffer -> Ptr ElementType
 getBuffer = _buffer
 
-
-
 getBufferWithOffset :: Int -> CircularBuffer -> Ptr ElementType
 getBufferWithOffset count circularBuffer = advancePtr (getBuffer circularBuffer) count
 
