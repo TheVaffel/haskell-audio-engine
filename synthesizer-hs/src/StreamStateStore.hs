@@ -5,7 +5,7 @@ import StreamState (StreamState, defaultFadeSize, fromStream, crossFadeState, fa
 import Synthesizer.Storable.Signal (mix)
 
 import SoundStream (SoundStream)
-import RawStream (zeroSignal)
+import BaseStream (zeroSignal)
 
 import qualified Data.Map as Map
 import Data.Foldable (Foldable(foldl))

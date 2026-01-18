@@ -60,21 +60,24 @@ foreign-library synthesizer-hs
     exposed-modules:  Foreign
 
     -- Modules included in this library but not exported.
-    other-modules: CircularBuffer
+    other-modules: BaseStream
+                   CircularBuffer
                    Commands
+                   Filter
                    Foreign
                    Instrument
                    Loop
                    PlayInterleave
-                   RawStream
                    SoundStream
                    StreamState
                    StreamStateStore
                    Utils
                    Envelope
+                   Operations
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
+        -- FlexibleContexts
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.18.3.0

@@ -1,18 +1,19 @@
 module Commands (updateStoreFromEvent) where
 
 import CircularBuffer (ElementType)
-import SoundStream (SoundStream, sampleRate)
+import SoundStream (SoundStream, sampleRate, sampleRateF)
 import StreamStateStore (StreamStateStore, insertStream, deleteStream, insertUnmanagedStream, markClosed)
-import RawStream (sineWave, sineWaveWithFrequency, zeroSignal)
+import BaseStream (sineWave, sineWaveWithFrequency, zeroSignal, noise)
 
 import qualified Synthesizer.Generic.Cut as Cut (take)
 import qualified Synthesizer.Generic.Filter.NonRecursive as Filt (envelope)
 import qualified Synthesizer.Generic.Control as Con (line, constant)
-import qualified Synthesizer.Generic.Signal as Sig (mix, zipWith)
+import qualified Synthesizer.Generic.Signal as Sig (map, mix, zipWith)
 
 import qualified Envelope as Env (envelope)
 
-import Instrument (bell, boing)
+import Instrument (bell, boing, staticSaw)
+import Filter (lowPassFilter)
 
 import Data.Maybe
 
@@ -103,7 +104,7 @@ createStreamFromGeneratorCommand generatorCommand =
     Envelope attackT peakAmp descentT -> Env.envelope attackT peakAmp descentT
     Volume volume gen0 -> Sig.zipWith (*) (Con.constant defaultLazySize volume) (createStreamFromGeneratorCommand gen0)
     Bell frequency -> bell frequency
-    Custom frequency -> boing frequency
+    Custom frequency -> Sig.map (*0.2) $ lowPassFilter frequency noise
     NoGenerator -> zeroSignal
 
 updateStoreFromCommand :: StreamCommand -> StreamStateStore -> StreamStateStore
