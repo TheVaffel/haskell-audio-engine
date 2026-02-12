@@ -1,46 +1,12 @@
 use std::vec;
 
 use super::circular_buffer::CircularBuffer;
+use super::foreign_interface::{AudioCommand, AudioGenerator, NumericCommand};
 
 type ElementType = f32;
 
-enum NumericCommand {
-    InsertAtIndex = 2,
-    InsertAndForget = 3,
-    StopAtIndex = 4,
-    Exit = 5,
-    SineGenerator = 1000,
-    SineGeneratorWithFrequency = 1001,
-    ModulateOp = 1002,
-    MixOp = 1003,
-    Envelope = 1004,
-    Volume = 1005,
-    Bell = 2001,
-    Custom = 2002,
-}
-
 trait SerializableCommand {
     fn serialize_append(&self, result: &mut Vec<ElementType>) -> ();
-}
-
-#[derive(Clone)]
-pub enum AudioCommand {
-    InsertAtIndex(u32, AudioGenerator),
-    InsertAndForget(AudioGenerator),
-    StopAtIndex(u32),
-    Exit,
-}
-
-#[derive(Clone)]
-pub enum AudioGenerator {
-    Sine,
-    SineWithFrequency(ElementType),
-    ModulateOp(Box<AudioGenerator>, Box<AudioGenerator>),
-    MixOp(Box<AudioGenerator>, Box<AudioGenerator>),
-    Envelope(f32, f32, f32),
-    Volume(f32, Box<AudioGenerator>),
-    Bell(f32),
-    Custom(f32),
 }
 
 impl<'a> SerializableCommand for AudioCommand {
@@ -69,8 +35,10 @@ impl<'a> SerializableCommand for AudioCommand {
 impl<'a> SerializableCommand for AudioGenerator {
     fn serialize_append(&self, result: &mut Vec<ElementType>) -> () {
         match self {
-            AudioGenerator::Sine => write_command_marker(NumericCommand::SineGenerator, result),
-            AudioGenerator::SineWithFrequency(frequency) => {
+            AudioGenerator::SineGenerator => {
+                write_command_marker(NumericCommand::SineGenerator, result)
+            }
+            AudioGenerator::SineGeneratorWithFrequency(frequency) => {
                 write_command_marker(NumericCommand::SineGeneratorWithFrequency, result);
                 result.push(*frequency);
             }
@@ -103,6 +71,10 @@ impl<'a> SerializableCommand for AudioGenerator {
                 write_command_marker(NumericCommand::Custom, result);
                 result.push(*freq);
             }
+            AudioGenerator::Custom2(freq) => {
+                write_command_marker(NumericCommand::Custom2, result);
+                result.push(*freq);
+            }
         }
     }
 }
@@ -124,7 +96,7 @@ pub fn write_command(command: &AudioCommand, event_buffer: &mut CircularBuffer) 
 }
 
 pub fn generate_sine_at_index(index: u32, event_buffer: &mut CircularBuffer) -> () {
-    let command = AudioCommand::InsertAtIndex(index, AudioGenerator::Sine);
+    let command = AudioCommand::InsertAtIndex(index, AudioGenerator::SineGenerator);
     write_command(&command, event_buffer);
 }
 
@@ -134,7 +106,7 @@ pub fn stop_at_index(index: u32, event_buffer: &mut CircularBuffer) -> () {
 }
 
 pub fn generate_and_forget_sine(event_buffer: &mut CircularBuffer) -> () {
-    let command = AudioCommand::InsertAndForget(AudioGenerator::Sine);
+    let command = AudioCommand::InsertAndForget(AudioGenerator::SineGenerator);
     write_command(&command, event_buffer);
 }
 
@@ -143,8 +115,8 @@ pub fn enveloped_double_sine_at_index(
     frequency: f32,
     event_buffer: &mut CircularBuffer,
 ) -> () {
-    let sine0 = AudioGenerator::SineWithFrequency(frequency);
-    let sine1 = AudioGenerator::SineWithFrequency(frequency * 0.49);
+    let sine0 = AudioGenerator::SineGeneratorWithFrequency(frequency);
+    let sine1 = AudioGenerator::SineGeneratorWithFrequency(frequency * 0.49);
     let double_sine = AudioGenerator::MixOp(Box::new(sine0), Box::new(sine1));
 
     let generator = AudioGenerator::ModulateOp(
@@ -152,7 +124,8 @@ pub fn enveloped_double_sine_at_index(
         Box::new(double_sine),
     );
 
-    let command = AudioCommand::InsertAtIndex(index, generator);
+    let command =
+        AudioCommand::InsertAtIndex(index, AudioGenerator::Volume(0.2, Box::new(generator)));
     write_command(&command, event_buffer);
 }
 
@@ -167,7 +140,7 @@ pub fn generate_sine_at_index_with_frequency(
     frequency: ElementType,
     event_buffer: &mut CircularBuffer,
 ) -> () {
-    let sine_with_freq = AudioGenerator::SineWithFrequency(frequency);
+    let sine_with_freq = AudioGenerator::SineGeneratorWithFrequency(frequency);
     let command = AudioCommand::InsertAtIndex(index, sine_with_freq);
     write_command(&command, event_buffer);
 }

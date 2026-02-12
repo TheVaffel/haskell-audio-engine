@@ -91,10 +91,16 @@ impl ApplicationHandler for App {
                         return;
                     }
 
-                    if event.logical_key == Key::Character("g".into()) && !event.repeat {
-                        // return generate_and_forget_sine(self.sound_event_buffer.as_mut());
+                    if event.logical_key == Key::Character("g".into()) {
                         write_command(
                             &AudioCommand::InsertAtIndex(100001, AudioGenerator::Custom(440.0)),
+                            &mut self.sound_event_buffer,
+                        );
+                    }
+
+                    if event.logical_key == Key::Character("c".into()) {
+                        write_command(
+                            &AudioCommand::InsertAtIndex(100002, AudioGenerator::Custom2(440.0)),
                             &mut self.sound_event_buffer,
                         );
                     }
@@ -104,12 +110,6 @@ impl ApplicationHandler for App {
                     return match maybe_index {
                         Some(index) => {
                             let frequency = 440.0 * 2.0f32.powf(index as f32 / 12.0);
-                            /* generate_sine_at_index_with_frequency(
-                                                index as u32,
-                                                frequency,
-                                                &mut self.sound_event_buffer,
-                            ); */
-
                             if !self.shift_pressed {
                                 enveloped_double_sine_at_index(
                                     index as u32,
@@ -124,16 +124,20 @@ impl ApplicationHandler for App {
                     };
                 } else if event.state == ElementState::Released {
                     if event.logical_key == Key::Character("g".into()) {
-                        // return generate_and_forget_sine(self.sound_event_buffer.as_mut());
                         write_command(
                             &AudioCommand::StopAtIndex(100001),
                             &mut self.sound_event_buffer,
                         );
                     }
 
-                    let maybe_index = find_index_for_key_event(event.physical_key);
+                    if event.logical_key == Key::Character("c".into()) {
+                        write_command(
+                            &AudioCommand::StopAtIndex(100002),
+                            &mut self.sound_event_buffer,
+                        );
+                    }
 
-                    println!(">>>> Released! Found maybe_index {:?}", maybe_index);
+                    let maybe_index = find_index_for_key_event(event.physical_key);
 
                     return match maybe_index {
                         Some(index) => stop_at_index(index as u32, &mut self.sound_event_buffer),

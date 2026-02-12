@@ -65,9 +65,11 @@ foreign-library synthesizer-hs
                    Commands
                    Filter
                    Foreign
+                   ForeignInterface
                    Instrument
                    Loop
                    PlayInterleave
+                   SoundSamples
                    SoundStream
                    StreamState
                    StreamStateStore
