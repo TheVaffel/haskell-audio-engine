@@ -69,17 +69,16 @@ foreign-library synthesizer-hs
                    Instrument
                    Loop
                    PlayInterleave
-                   SoundSamples
                    SoundStream
                    StreamState
                    StreamStateStore
                    Utils
                    Envelope
                    Operations
+                   Design.Alarm
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
-        -- FlexibleContexts
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.18.3.0
@@ -89,12 +88,14 @@ foreign-library synthesizer-hs
                     , numeric-prelude
                     , alsa-pcm
                     , containers
+                    , extra
 
     c-sources: src/c_wrapper/wrapper.c
     cc-options: -shared -fPIC
 
     -- Directories containing source files.
     hs-source-dirs:   src
+                      src/Design
 
     -- Base language which the package is written in.
     default-language: Haskell2010

@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Instrument where
 
-import SoundStream (ElementType, SoundStream, sampleRate, sampleRateF, modulate)
+import SoundStream (ElementType, SoundStream, sampleRate, sampleRateF)
 import qualified Synthesizer.Generic.Signal as SigG
 import qualified Synthesizer.Storable.Signal as SigSt
 import qualified Synthesizer.Generic.Control as Con
@@ -32,6 +32,7 @@ import Prelude ()
 
 import qualified Algebra.Transcendental        as Trans
 import qualified Algebra.RealField             as RealField
+import Operations (modulate)
 
 freqModSaw  = Osci.freqMod Wave.saw
 

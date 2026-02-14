@@ -10,7 +10,7 @@ import qualified Synthesizer.Plain.Filter.Recursive as FiltRec
 import qualified Synthesizer.Plain.Filter.Recursive.Universal as UniFilter
 
 lowPassFilter :: Float -> SoundStream -> SoundStream
-lowPassFilter frequency = SigG.map UniFilter.bandpass . uniFilter 30.0 frequency
+lowPassFilter frequency = SigG.map UniFilter.lowpass . uniFilter 1.0 frequency
 
 highPassFilter :: Float -> SoundStream -> SoundStream
 highPassFilter frequency = SigG.map UniFilter.highpass . uniFilter 10.0 frequency

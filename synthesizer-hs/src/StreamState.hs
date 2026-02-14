@@ -8,7 +8,9 @@ module StreamState (StreamState
                    , fadeOutState
                    , crossFadeState) where
 
-import SoundStream (SoundStream, sampleRate, fadeOut, crossFade)
+import SoundStream (SoundStream, sampleRate)
+
+import Operations (fadeOut, fadeIn, crossFade)
 
 import qualified Synthesizer.Generic.Cut as Cut
 import Synthesizer.Generic.Signal (defaultLazySize)
@@ -21,7 +23,7 @@ hidden behind some construction, or far away.
 The structure contains a pair of sound streams, one "original" and one "current". The "original" represents the sound at the source, while the "current" is the sound at the receiving destination. Keeping track of both makes it easy
 to apply and unapply effects on the stream.
 -}
-data StreamState = StreamState { originalStream :: SoundStream, currentStream :: SoundStream }
+data StreamState = StreamState { originalStream :: !SoundStream, currentStream :: !SoundStream }
 
 defaultFadeSize = round (0.01 * fromIntegral sampleRate) :: Int
 

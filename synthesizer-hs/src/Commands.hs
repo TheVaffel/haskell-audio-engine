@@ -21,7 +21,6 @@ import Data.Maybe
 import Debug.Trace (trace)
 import qualified Data.Map as Map
 import Synthesizer.Generic.Signal (defaultLazySize)
-import SoundSamples (cosFadingAlerts, cyclingSounds)
 
 import ForeignInterface
     ( AudioGenerator(NoGenerator, SineGenerator,
@@ -41,37 +40,8 @@ import ForeignInterface
       customMarker,
       custom2Marker, envelopeMarker )
 
-{- insertAtIndex = 2
-insertAndForget = 3
-stopAtIndex = 4
-exit = 5
+import Design.Alarm (cosc, cosFadingStreams, cyclingSounds, fullAlarm, alarmHappyBlips, alarmAffirmative, alarmActivate, alarmInvaders, alarmInformation, alarmMessage, alarmFinished, alarmError, alarmBuzzer, alarmBuzzer2, alarmCustom)
 
-sineGenerator = 1000
-sineFrequency = 1001
-modulateOp = 1002
-mixOp = 1003
-envelope = 1004
-volumeMarker = 1005
-bellMarker = 2001
-customMarker = 2002
-custom2Marker = 2003
-
-data StreamCommand = InsertStreamAtIndex !Int !GeneratorCommand
-                   | DeleteStreamAtIndex !Int
-                   | InsertAndForget !GeneratorCommand
-                   | Exit
-                   deriving Show
-
-data GeneratorCommand = SineWave
-                      | SineWaveWithFrequency !ElementType
-                      | Modulate !GeneratorCommand !GeneratorCommand
-                      | Mix !GeneratorCommand !GeneratorCommand
-                      | Envelope !ElementType !ElementType !ElementType
-                      | Volume !ElementType !GeneratorCommand
-                      | Custom !ElementType
-                      | Custom2 !ElementType
-                      | Bell !ElementType
-                      | NoGenerator deriving Show -}
 
 eventGeneratorMap = Map.fromList [(insertAtIndexMarker, \(index:restArgs) -> InsertAtIndex (round index) $ createAudioCommandFromInput restArgs),
                                   (insertAndForgetMarker, InsertAndForget . createAudioCommandFromInput),
@@ -128,10 +98,11 @@ createStreamFromAudioCommand generatorCommand =
     Envelope attackT peakAmp descentT -> Env.envelope attackT peakAmp descentT
     Volume volume gen0 -> Sig.zipWith (*) (Con.constant defaultLazySize volume) (createStreamFromAudioCommand gen0)
     Bell frequency -> bell frequency
-    -- Custom frequency -> Sig.zipWith (\a b -> a * b * 0.2) (lfo (frequency * 0.01))  noise
-    -- Custom frequency -> Sig.zipWith (\a b -> a * b * 0.2) (lfo 2) (sineWaveWithFrequency 800)
-    Custom frequency -> Sig.map (*0.2) $ cosFadingAlerts frequency
-    Custom2 frequency -> Sig.map (*0.2) cyclingSounds
+    Custom frequency -> Sig.map (*0.2) $ cosFadingStreams (map sineWaveWithFrequency [frequency, frequency * 1.4, frequency * 1.8])
+    -- Custom2 frequency -> Sig.map (*0.2) cyclingSounds
+    -- Custom frequency -> Sig.map (*0.2) $ cosc frequency 0.0
+    -- Custom2 frequency -> Sig.map (*0.2) $ cosc frequency 0.2
+    Custom2 frequency -> fullAlarm alarmCustom
     NoGenerator -> zeroSignal
 
 custom frequency = let lf = lfo 2
