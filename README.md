@@ -4,6 +4,8 @@ Experimental project using the `synthesizer-core` Haskell package to create a so
 
 The synthesizer countinuously polls an input circular buffer for new commands, inbetween relaying audio buffers to the system sound sink. The UI uses the circular buffer to write commands on user input.
 
+Some of the developments in this repository follows the exercises and examples of Andy Farnell's book [Designing Sound](https://mitpress.mit.edu/9780262014410/designing-sound/)
+
 ## Prerequisites
 
 - Cabal (Haskell build system)
