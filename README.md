@@ -16,14 +16,14 @@ The synthesizer countinuously polls an input circular buffer for new commands, i
 $ cabal build
 ```
 
-in the `audio-engine` folder.
+in the `synthesizer-hs` folder.
 
 - Run
 ```
 $ cargo run
 ```
 
-in the `ui` folder.
+in the `audio-engine-rs` folder.
 
 - Profit.
 
