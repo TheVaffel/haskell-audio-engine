@@ -10,7 +10,9 @@ import qualified Synthesizer.Generic.Filter.NonRecursive as Filt (envelope)
 import qualified Synthesizer.Generic.Control as Con (line, constant)
 import qualified Synthesizer.Generic.Signal as Sig (mix, zipWith)
 
-import Instrument (bell)
+import qualified Envelope as Env (envelope)
+
+import Instrument (bell, boing)
 
 import Data.Maybe
 
@@ -30,6 +32,7 @@ mixOp = 1003
 envelope = 1004
 volumeMarker = 1005
 bellMarker = 2001
+customMarker = 2002
 
 data StreamCommand = InsertStreamAtIndex !Int !GeneratorCommand
                    | DeleteStreamAtIndex !Int
@@ -43,6 +46,7 @@ data GeneratorCommand = SineWave
                       | Mix !GeneratorCommand !GeneratorCommand
                       | Envelope !ElementType !ElementType !ElementType
                       | Volume !ElementType !GeneratorCommand
+                      | Custom !ElementType
                       | Bell !ElementType
                       | NoGenerator deriving Show
 
@@ -60,7 +64,8 @@ generatorCommandMap = Map.fromList [(sineGenerator, (,) SineWave),
                                      (volumeMarker, \(f:commandOp:r0) ->
                                          let (command, rest) = (generatorCommandMap Map.! round commandOp) r0 in
                                            (Volume f command, rest)),
-                                     (bellMarker, \(f:rest) -> (Bell f, rest))
+                                     (bellMarker, \(f:rest) -> (Bell f, rest)),
+                                     (customMarker, \(f:rest) -> (Custom f, rest))
                                    ] :: Map.Map Int ([ElementType] -> (GeneratorCommand, [ElementType]))
 
 parseBinaryOperation :: (GeneratorCommand -> GeneratorCommand -> GeneratorCommand) -> [ElementType] -> (GeneratorCommand, [ElementType])
@@ -89,18 +94,16 @@ createGeneratorCommandFromInput (commandTypeF:restArgs) =
   in
     maybe NoGenerator fst maybeGenerator
 
-
-line = Con.line defaultLazySize
-
 createStreamFromGeneratorCommand generatorCommand =
   case generatorCommand of
     SineWave -> Cut.take (3 * sampleRate) sineWave
     SineWaveWithFrequency freq -> sineWaveWithFrequency freq
     Mix gen0 gen1 -> Sig.mix (createStreamFromGeneratorCommand gen0) (createStreamFromGeneratorCommand gen1)
     Modulate gen0 gen1 -> Filt.envelope (createStreamFromGeneratorCommand gen0)  (createStreamFromGeneratorCommand gen1)
-    Envelope attackT peakAmp descentT -> line (round $ fromIntegral sampleRate * attackT) (0.0, peakAmp) <> line (round $ fromIntegral sampleRate * descentT) (peakAmp, 1.0) <> Con.constant defaultLazySize 1.0
+    Envelope attackT peakAmp descentT -> Env.envelope attackT peakAmp descentT
     Volume volume gen0 -> Sig.zipWith (*) (Con.constant defaultLazySize volume) (createStreamFromGeneratorCommand gen0)
     Bell frequency -> bell frequency
+    Custom frequency -> boing frequency
     NoGenerator -> zeroSignal
 
 updateStoreFromCommand :: StreamCommand -> StreamStateStore -> StreamStateStore

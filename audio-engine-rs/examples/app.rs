@@ -1,37 +1,36 @@
-use circular_buffer::CircularBuffer;
-use generate_sound_event::{
-    enveloped_double_sine_at_index, generate_and_forget_sine, generate_bell,
-    generate_sine_at_index, generate_sine_at_index_with_frequency, stop_at_index,
+use winit::event_loop::{ControlFlow, EventLoop};
+
+use winit::{
+    application::ApplicationHandler,
+    event::{ElementState, WindowEvent},
+    event_loop::ActiveEventLoop,
+    keyboard::{Key, KeyCode, PhysicalKey},
+    window::{Window, WindowId},
 };
-use std::thread;
-use winit::application::ApplicationHandler;
-use winit::event::{ElementState, KeyEvent, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::keyboard::{Key, KeyCode, NativeKeyCode, PhysicalKey};
-use winit::window::{Window, WindowId};
 
-mod circular_buffer;
-mod generate_sound_event;
+use audio_engine_rs::{
+    create_sound_buffer, enveloped_double_sine_at_index, generate_and_forget_sine, generate_bell,
+    stop_at_index, write_command, AudioCommand, AudioGenerator, CircularBuffer,
+};
 
-unsafe extern "C" {
-    fn play_hs(
-        buffer_ptr: *const f32,
-        buffer_size: i32,
-        read_index_ptr: *mut i32,
-        write_index_ptr: *mut i32,
-    ) -> ();
-    fn init_hs() -> ();
-    fn exit_hs() -> ();
+fn main() {
+    let event_loop = EventLoop::new().unwrap();
+    event_loop.set_control_flow(ControlFlow::Wait);
+
+    let sound_event_buffer = create_sound_buffer();
+
+    let mut app = App::new(sound_event_buffer);
+    let _ = event_loop.run_app(&mut app);
 }
 
-struct App {
+pub struct App {
     window: Option<Window>,
     sound_event_buffer: Box<CircularBuffer>,
     shift_pressed: bool,
 }
 
 impl App {
-    fn new(sound_event_buffer: Box<CircularBuffer>) -> Self {
+    pub fn new(sound_event_buffer: Box<CircularBuffer>) -> Self {
         Self {
             window: None,
             sound_event_buffer,
@@ -93,7 +92,11 @@ impl ApplicationHandler for App {
                     }
 
                     if event.logical_key == Key::Character("g".into()) && !event.repeat {
-                        return generate_and_forget_sine(self.sound_event_buffer.as_mut());
+                        // return generate_and_forget_sine(self.sound_event_buffer.as_mut());
+                        write_command(
+                            &AudioCommand::InsertAtIndex(100001, AudioGenerator::Custom(440.0)),
+                            &mut self.sound_event_buffer,
+                        );
                     }
 
                     let maybe_index = find_index_for_key_event(event.physical_key);
@@ -114,16 +117,20 @@ impl ApplicationHandler for App {
                                     &mut self.sound_event_buffer,
                                 );
                             } else {
-                                generate_bell(
-                                    index as u32,
-                                    frequency,
-                                    &mut self.sound_event_buffer,
-                                );
+                                generate_bell(frequency, &mut self.sound_event_buffer);
                             }
                         }
                         None => (),
                     };
                 } else if event.state == ElementState::Released {
+                    if event.logical_key == Key::Character("g".into()) {
+                        // return generate_and_forget_sine(self.sound_event_buffer.as_mut());
+                        write_command(
+                            &AudioCommand::StopAtIndex(100001),
+                            &mut self.sound_event_buffer,
+                        );
+                    }
+
                     let maybe_index = find_index_for_key_event(event.physical_key);
 
                     println!(">>>> Released! Found maybe_index {:?}", maybe_index);
@@ -160,48 +167,4 @@ fn find_index_for_key_event(key: PhysicalKey) -> Option<usize> {
         .map(|(ind, _)| *ind);
 
     pair
-}
-
-fn main() {
-    let event_loop = EventLoop::new().unwrap();
-
-    let mut sound_event_buffer = Box::new(CircularBuffer::new());
-
-    let buffer_ptr_as_usize = sound_event_buffer.buffer.as_ptr() as usize;
-    let buffer_size = sound_event_buffer.buffer_size() as i32;
-    let read_index_ptr = &mut sound_event_buffer.read_index as *mut i32;
-    let read_as_usize = read_index_ptr as usize;
-    let write_index_ptr = &mut sound_event_buffer.write_index as *mut i32;
-    let write_as_usize = write_index_ptr as usize;
-
-    let _ = thread::spawn(move || {
-        // thread code
-        unsafe {
-            println!(">> Initializing Haskell");
-            init_hs();
-            println!(">> Initializing sound loop");
-            play_hs(
-                buffer_ptr_as_usize as *mut f32,
-                buffer_size,
-                read_as_usize as *mut i32,
-                write_as_usize as *mut i32,
-            );
-
-            println!(">> Exited sound loop");
-            exit_hs();
-            println!(">> Exited Haskell");
-        }
-    });
-
-    // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
-    // dispatched any events. This is ideal for games and similar applications.
-    event_loop.set_control_flow(ControlFlow::Poll);
-
-    // ControlFlow::Wait pauses the event loop if no events are available to process.
-    // This is ideal for non-game applications that only update in response to user
-    // input, and uses significantly less power/CPU time than ControlFlow::Poll.
-    event_loop.set_control_flow(ControlFlow::Wait);
-
-    let mut app = App::new(sound_event_buffer);
-    event_loop.run_app(&mut app);
 }

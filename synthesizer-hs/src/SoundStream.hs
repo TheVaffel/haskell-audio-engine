@@ -13,11 +13,16 @@ type SoundStream = SigSt.T ElementType
 
 sampleRate = 44100 :: Int
 
+sampleRateF = fromIntegral sampleRate :: Float
+
 interactiveBufferSize :: Int
 interactiveBufferSize = 256
 
 interactiveLazySize :: SigG.LazySize
 interactiveLazySize = SigG.LazySize interactiveBufferSize
+
+modulate :: SoundStream -> SoundStream -> SoundStream
+modulate = SigG.zipWith (*)
 
 fadeOut :: Int -> SoundStream -> SoundStream
 fadeOut n stream =
