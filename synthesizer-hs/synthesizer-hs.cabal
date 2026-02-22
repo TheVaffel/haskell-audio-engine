@@ -51,23 +51,29 @@ extra-doc-files:    CHANGELOG.md
 -- Extra source files to be distributed with the package, such as examples, or a tutorial module.
 -- extra-source-files:
 
-foreign-library synthesizer-hs
-    type:                native-shared
-    -- Import common warning flags.
-    import:           warnings
+library synthesizer-hs-lib
+        exposed-modules: CircularBuffer
+                         Loop
+                         Design.Police
 
-    -- Modules exported by the library.
-    exposed-modules:  Foreign
 
-    -- Modules included in this library but not exported.
-    other-modules: BaseStream
-                   CircularBuffer
+        -- Directories containing source files.
+        hs-source-dirs:   src
+                          src/Design
+        build-depends: base ^>=4.18.3.0
+                     , sox
+                     , synthesizer-core
+                     , synthesizer-alsa
+                     , numeric-prelude
+                     , alsa-pcm
+                     , containers
+                     , extra
+
+        other-modules: BaseStream
                    Commands
                    Filter
-                   Foreign
                    ForeignInterface
                    Instrument
-                   Loop
                    PlayInterleave
                    SoundStream
                    StreamState
@@ -77,11 +83,23 @@ foreign-library synthesizer-hs
                    Operations
                    Design.Alarm
 
+foreign-library synthesizer-hs
+    type:                native-shared
+    -- Import common warning flags.
+    import:           warnings
+
+    -- Modules exported by the library.
+    exposed-modules:  Foreign
+
+    -- Modules included in this library but not exported.
+    other-modules: Foreign
+
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.18.3.0
+                    , synthesizer-hs-lib
                     , sox
                     , synthesizer-core
                     , synthesizer-alsa
@@ -94,8 +112,7 @@ foreign-library synthesizer-hs
     cc-options: -shared -fPIC
 
     -- Directories containing source files.
-    hs-source-dirs:   src
-                      src/Design
+    hs-source-dirs:   foreign
 
     -- Base language which the package is written in.
     default-language: Haskell2010
@@ -119,8 +136,10 @@ test-suite synthesizer-test
 
     -- The entrypoint to the test suite.
     main-is:          Main.hs
+    test-module: Main
 
     -- Test dependencies.
-    build-depends:
-        base ^>=4.18.3.0,
-        synthesizer-hs
+    build-depends: base ^>=4.18.3.0
+                 , synthesizer-hs-lib
+                 , synthesizer-core
+                 , filepath
