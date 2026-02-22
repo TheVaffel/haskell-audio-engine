@@ -44,6 +44,5 @@ zeroSignal = Cut.cycle $ SigG.repeat interactiveLazySize 0.0
 
 phasor :: Float -> SoundStream
 phasor freq = let fracFreq = (freq / sampleRateF) :: Float
-                  linearSignal = Con.linear defaultLazySize fracFreq 0 :: SoundStream
-  in
-  SigG.map (\p -> p - fromIntegral (floor p)) linearSignal
+              in
+                Osci.static defaultLazySize (Wave.fromFunction id) zero fracFreq
