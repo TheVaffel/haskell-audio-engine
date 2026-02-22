@@ -41,6 +41,7 @@ import ForeignInterface
       custom2Marker, envelopeMarker )
 
 import Design.Alarm (cosc, cosFadingStreams, cyclingSounds, fullAlarm, alarmHappyBlips, alarmAffirmative, alarmActivate, alarmInvaders, alarmInformation, alarmMessage, alarmFinished, alarmError, alarmBuzzer, alarmBuzzer2, alarmCustom)
+import Design.Police (exponentialOscillator, exponentialFreq)
 
 
 eventGeneratorMap = Map.fromList [(insertAtIndexMarker, \(index:restArgs) -> InsertAtIndex (round index) $ createAudioCommandFromInput restArgs),
@@ -102,7 +103,8 @@ createStreamFromAudioCommand generatorCommand =
     -- Custom2 frequency -> Sig.map (*0.2) cyclingSounds
     -- Custom frequency -> Sig.map (*0.2) $ cosc frequency 0.0
     -- Custom2 frequency -> Sig.map (*0.2) $ cosc frequency 0.2
-    Custom2 frequency -> fullAlarm alarmCustom
+    -- Custom2 frequency -> fullAlarm alarmCustom
+    Custom2 frequency -> Sig.map (*0.1) $ exponentialFreq 2.0
     NoGenerator -> zeroSignal
 
 custom frequency = let lf = lfo 2
