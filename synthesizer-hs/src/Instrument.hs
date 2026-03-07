@@ -1,9 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Instrument where
 
-import SoundStream (ElementType, SoundStream, sampleRate, sampleRateF)
+import SoundStream (ElementType, SoundStream, sampleRate, sampleRateF, SignalType)
 import qualified Synthesizer.Generic.Signal as SigG
-import qualified Synthesizer.Storable.Signal as SigSt
 import qualified Synthesizer.Generic.Control as Con
 import qualified Synthesizer.Generic.Oscillator as Osci
 import Synthesizer.Generic.Signal (defaultLazySize)
@@ -34,36 +33,37 @@ import qualified Algebra.Transcendental        as Trans
 import qualified Algebra.RealField             as RealField
 import Operations (modulate)
 
+freqModSaw :: SignalType sig => Phase.T ElementType -> sig ElementType -> sig ElementType
 freqModSaw  = Osci.freqMod Wave.saw
 
-staticSaw :: (Trans.C a, RealField.C a, SigG.Write sig a) => a -> sig a
+staticSaw :: SignalType sig => ElementType -> sig ElementType
 staticSaw  = Osci.static defaultLazySize Wave.saw zero
 
-bell :: ElementType -> SoundStream
+bell :: SignalType sig => ElementType -> sig ElementType
 bell frequency = let halfLife = 0.5
                      indices = [1.0, 2.0, 2.4, 3.0, 4.0]
                      streams = foldl1 SigG.mix $ map (\index -> bellHarmonic sampleRateF index halfLife frequency) indices
                      lenF = (fromIntegral . length) indices
      in Cut.take (3 * sampleRate) $ SigG.map (/ lenF) streams
-bellHarmonic :: ElementType -> ElementType -> ElementType -> ElementType -> SoundStream
+bellHarmonic :: SignalType sig => ElementType -> ElementType -> ElementType -> ElementType -> sig ElementType
 bellHarmonic sampleRate n halfLife freq =
     modulate (Osci.freqModSine (fromRepresentative 0)
                       (SigG.map (\modu -> freq / sampleRate * n * (1.0 + 0.005 * modu))
                         (Osci.staticSine defaultLazySize (fromRepresentative 0) (5.0 / sampleRate))))
                 (Con.exponential2 defaultLazySize (halfLife/ n * sampleRate ) 1)
 
-boing :: ElementType -> SoundStream
+boing :: SignalType sig =>  ElementType -> sig ElementType
 boing frequency = let
-  degrade = Con.exponential2 defaultLazySize (0.5 * sampleRateF) 1.0 :: SoundStream
+  degrade = Con.exponential2 defaultLazySize (0.5 * sampleRateF) 1.0
   freqModulatingSine = {- modulate degrade $ -} Con.constant defaultLazySize (frequency / sampleRateF) {- SigG.map (\perturbation -> 0.1 {- perturbation * 0.05 + frequency -} ) $
     Osci.staticSine defaultLazySize (fromRepresentative 0) (8.0 / sampleRateF) -}
-  ampModulatingSine = staticSaw (2.1233 / sampleRateF) :: SoundStream
+  -- ampModulatingSine = staticSaw (2.1233 / sampleRateF)
   baseWave = envelope 0.05 5.0 0.05 `modulate` freqModSaw zero freqModulatingSine
   combIt = Comb.run (round (0.12 * sampleRateF)) (0.4 :: Float)
   in
     degrade `modulate` combIt baseWave -- `modulate` ampModulatingSine
 
-alert :: Float -> SoundStream
+alert :: SignalType sig => Float -> sig ElementType
 alert frequency = let sqWave = Osci.static defaultLazySize Wave.square zero (frequency / sampleRateF)
                   in
                     sqWave

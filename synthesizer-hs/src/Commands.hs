@@ -1,14 +1,14 @@
 module Commands (updateStoreFromEvent) where
 
-import CircularBuffer (ElementType)
-import SoundStream (SoundStream, sampleRate, sampleRateF)
+import SoundStream (SoundStream, sampleRate, sampleRateF, SignalType, ElementType)
 import StreamStateStore (StreamStateStore, insertStream, deleteStream, insertUnmanagedStream, markClosed)
 import BaseStream (sineWave, sineWaveWithFrequency, zeroSignal, noise, lfo)
 
 import qualified Synthesizer.Generic.Cut as Cut (take)
 import qualified Synthesizer.Generic.Filter.NonRecursive as Filt (envelope)
 import qualified Synthesizer.Generic.Control as Con (line, constant)
-import qualified Synthesizer.Generic.Signal as Sig (map, mix, zipWith)
+import qualified Synthesizer.Generic.Signal as Sig (fromState, map, mix, zipWith)
+import qualified Synthesizer.State.Signal as SigState
 
 import qualified Envelope as Env (envelope)
 
@@ -41,7 +41,8 @@ import ForeignInterface
       custom2Marker, envelopeMarker )
 
 import Design.Alarm (cosc, cosFadingStreams, cyclingSounds, fullAlarm, alarmHappyBlips, alarmAffirmative, alarmActivate, alarmInvaders, alarmInformation, alarmMessage, alarmFinished, alarmError, alarmBuzzer, alarmBuzzer2, alarmCustom)
-import Design.Police (exponentialOscillator, exponentialFreq)
+import Design.Police (exponentialOscillator, exponentialFreq, fullSiren, semiFullSiren)
+import Synthesizer.Storable.Signal (defaultChunkSize)
 
 
 eventGeneratorMap = Map.fromList [(insertAtIndexMarker, \(index:restArgs) -> InsertAtIndex (round index) $ createAudioCommandFromInput restArgs),
@@ -90,6 +91,7 @@ createAudioCommandFromInput (commandTypeF:restArgs) =
   in
     maybe NoGenerator fst maybeGenerator
 
+createStreamFromAudioCommand :: SignalType sig => AudioGenerator -> sig ElementType
 createStreamFromAudioCommand generatorCommand =
   case generatorCommand of
     SineGenerator -> Cut.take (3 * sampleRate) sineWave
@@ -99,14 +101,17 @@ createStreamFromAudioCommand generatorCommand =
     Envelope attackT peakAmp descentT -> Env.envelope attackT peakAmp descentT
     Volume volume gen0 -> Sig.zipWith (*) (Con.constant defaultLazySize volume) (createStreamFromAudioCommand gen0)
     Bell frequency -> bell frequency
-    Custom frequency -> Sig.map (*0.2) $ cosFadingStreams (map sineWaveWithFrequency [frequency, frequency * 1.4, frequency * 1.8])
+    -- Custom frequency -> Sig.map (*0.2) $ cosFadingStreams (map sineWaveWithFrequency [frequency, frequency * 1.4, frequency * 1.8])
+    Custom _ -> Sig.map (*0.1) $ Sig.fromState defaultLazySize (semiFullSiren 0)
     -- Custom2 frequency -> Sig.map (*0.2) cyclingSounds
     -- Custom frequency -> Sig.map (*0.2) $ cosc frequency 0.0
     -- Custom2 frequency -> Sig.map (*0.2) $ cosc frequency 0.2
     -- Custom2 frequency -> fullAlarm alarmCustom
-    Custom2 frequency -> Sig.map (*0.1) $ exponentialFreq 2.0
+    -- Custom2 frequency -> Sig.map (*0.1) $ exponentialFreq 2.0
+    Custom2 _ -> Sig.map (*0.1) $ Sig.fromState defaultLazySize (fullSiren 0)
     NoGenerator -> zeroSignal
 
+custom :: SignalType sig => ElementType -> sig ElementType
 custom frequency = let lf = lfo 2
                        invLf = Sig.map (1.0 -) lf
                    in
@@ -116,11 +121,11 @@ custom frequency = let lf = lfo 2
 updateStoreFromCommand :: AudioCommand -> StreamStateStore -> StreamStateStore
 updateStoreFromCommand command store =
   case command of
-    InsertAtIndex index generatorCommand -> trace ("Inserting stream at index " ++ show index) $ insertStream index stream store
+    InsertAtIndex index generatorCommand -> trace ("Inserting stream at index " ++ show index) $ insertStream index (SigState.toStorableSignal defaultChunkSize stream) store
       where
         stream = createStreamFromAudioCommand generatorCommand
     StopAtIndex index -> deleteStream index store
-    InsertAndForget generatorCommand -> insertUnmanagedStream (Cut.take (10 * sampleRate) stream) store
+    InsertAndForget generatorCommand -> insertUnmanagedStream (Cut.take (10 * sampleRate) (SigState.toStorableSignal defaultChunkSize stream)) store
       where
         stream = createStreamFromAudioCommand generatorCommand
     Exit -> markClosed store

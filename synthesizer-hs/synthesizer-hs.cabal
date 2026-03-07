@@ -55,7 +55,19 @@ library synthesizer-hs-lib
         exposed-modules: CircularBuffer
                          Loop
                          Design.Police
-
+                         BaseStream
+                         Commands
+                         Filter
+                         ForeignInterface
+                         Instrument
+                         PlayInterleave
+                         SoundStream
+                         StreamState
+                         StreamStateStore
+                         Utils
+                         Envelope
+                         Operations
+                         Design.Alarm
 
         -- Directories containing source files.
         hs-source-dirs:   src
@@ -69,19 +81,12 @@ library synthesizer-hs-lib
                      , containers
                      , extra
 
-        other-modules: BaseStream
-                   Commands
-                   Filter
-                   ForeignInterface
-                   Instrument
-                   PlayInterleave
-                   SoundStream
-                   StreamState
-                   StreamStateStore
-                   Utils
-                   Envelope
-                   Operations
-                   Design.Alarm
+    -- LANGUAGE extensions used by modules in this package.
+    default-extensions: FlexibleContexts
+                        FlexibleInstances
+                        RankNTypes
+
+        -- other-modules:
 
 foreign-library synthesizer-hs
     type:                native-shared
@@ -93,9 +98,6 @@ foreign-library synthesizer-hs
 
     -- Modules included in this library but not exported.
     other-modules: Foreign
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.18.3.0
@@ -142,4 +144,4 @@ test-suite synthesizer-test
     build-depends: base ^>=4.18.3.0
                  , synthesizer-hs-lib
                  , synthesizer-core
-                 , filepath
+                 , numeric-prelude

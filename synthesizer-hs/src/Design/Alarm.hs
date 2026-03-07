@@ -1,6 +1,6 @@
 module Design.Alarm where
 
-import SoundStream (SoundStream, sampleRateF, sampleRate)
+import SoundStream (SoundStream, sampleRateF, sampleRate, SoundGenerator)
 
 import qualified Synthesizer.Generic.Oscillator as Osci
 import qualified Synthesizer.Basic.Wave as Wave
@@ -35,6 +35,7 @@ cosByPhase inp = let wave = Osci.phaseMod Wave.cosine zero inp
   in
   wave
 
+cyclingSounds :: SoundGenerator
 cyclingSounds = let sounds = [sineWaveWithFrequency 723
                              , sineWaveWithFrequency 932
                              , sineWaveWithFrequency 1012]
