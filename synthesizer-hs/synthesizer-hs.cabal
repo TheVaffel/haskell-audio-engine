@@ -60,6 +60,7 @@ library synthesizer-hs-lib
                          Filter
                          ForeignInterface
                          Instrument
+                         Parameterized
                          PlayInterleave
                          SoundStream
                          StreamState
@@ -77,6 +78,8 @@ library synthesizer-hs-lib
                      , synthesizer-core
                      , synthesizer-alsa
                      , numeric-prelude
+                     , storablevector
+                     , transformers
                      , alsa-pcm
                      , containers
                      , extra
@@ -106,6 +109,8 @@ foreign-library synthesizer-hs
                     , synthesizer-core
                     , synthesizer-alsa
                     , numeric-prelude
+                    , storablevector
+                    , transformers
                     , alsa-pcm
                     , containers
                     , extra

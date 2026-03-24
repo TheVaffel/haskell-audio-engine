@@ -15,7 +15,6 @@ import qualified Synthesizer.Generic.Signal as SigG
 
 import Synthesizer.Storable.Signal (mix, mixSize, mixSndPattern, defaultChunkSize)
 
-import qualified Synthesizer.Generic.Cut as Cut (splitAt, lengthAtLeast, take)
 import NumericPrelude.Base ( IO, (.), putStrLn, Functor (fmap), Maybe)
 
 import qualified Synthesizer.ALSA.Storable.Play as AlsaPlay
@@ -36,9 +35,11 @@ ioInterleave handler updateStore store  = do
 Play a sound stream interleaved with IO actions at a pre-defined interval
 -}
 playWithInterleavedStoreUpdates :: (StreamStateStore -> IO StreamStateStore) -> IO ()
-playWithInterleavedStoreUpdates updateStore = do
+playWithInterleavedStoreUpdates = playWithInterleavedStoreUpdatesWithStore empty
+
+playWithInterleavedStoreUpdatesWithStore :: StreamStateStore -> (StreamStateStore -> IO StreamStateStore) -> IO ()
+playWithInterleavedStoreUpdatesWithStore initialStore updateStore = do
   Alsa.withSoundSink sink ioAndPut
   where
-    initialStore = empty
     sink = AlsaPlay.makeSink AlsaPlay.defaultDevice (0.02::Float) sampleRate
     ioAndPut handle = ioInterleave (AlsaPlay.writeLazy sink handle) updateStore initialStore

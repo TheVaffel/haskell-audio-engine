@@ -18,7 +18,7 @@ updateStoreFromEventsIOAction circularBuffer store = do
   maybeEventElements <- getEventFromCircularBuffer circularBuffer
   pure $ case maybeEventElements of
            Just eventElements -> updateStoreFromEvent eventElements store
-           _ -> store
+           Nothing -> store
 
 getEventFromCircularBuffer :: CircularBuffer -> IO (Maybe [ElementType])
 getEventFromCircularBuffer circularBuffer = do

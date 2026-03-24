@@ -1,5 +1,7 @@
 use std::vec;
 
+use crate::foreign_interface::AudioParameter;
+
 use super::circular_buffer::CircularBuffer;
 use super::foreign_interface::{AudioCommand, AudioGenerator, NumericCommand};
 
@@ -28,6 +30,31 @@ impl<'a> SerializableCommand for AudioCommand {
             AudioCommand::Exit => {
                 write_command_marker(NumericCommand::Exit, result);
             }
+            AudioCommand::SetExternalParameter(index, value, interp_time) => {
+                write_command_marker(NumericCommand::SetExternalParameter, result);
+                result.push(*index as ElementType);
+                result.push(*value);
+                result.push(*interp_time);
+            }
+        }
+    }
+}
+
+impl<'a> SerializableCommand for AudioParameter {
+    fn serialize_append(&self, result: &mut Vec<ElementType>) -> () {
+        match self {
+            AudioParameter::Constant(val) => {
+                write_command_marker(NumericCommand::Constant, result);
+                result.push(*val as ElementType);
+            }
+            AudioParameter::External(ind) => {
+                write_command_marker(NumericCommand::External, result);
+                result.push(*ind as ElementType);
+            }
+            AudioParameter::Signal(generator) => {
+                write_command_marker(NumericCommand::Signal, result);
+                generator.serialize_append(result);
+            }
         }
     }
 }
@@ -35,8 +62,9 @@ impl<'a> SerializableCommand for AudioCommand {
 impl<'a> SerializableCommand for AudioGenerator {
     fn serialize_append(&self, result: &mut Vec<ElementType>) -> () {
         match self {
-            AudioGenerator::SineGenerator => {
-                write_command_marker(NumericCommand::SineGenerator, result)
+            AudioGenerator::SineGenerator(parameter) => {
+                write_command_marker(NumericCommand::SineGenerator, result);
+                parameter.serialize_append(result);
             }
             AudioGenerator::SineGeneratorWithFrequency(frequency) => {
                 write_command_marker(NumericCommand::SineGeneratorWithFrequency, result);
@@ -96,7 +124,10 @@ pub fn write_command(command: &AudioCommand, event_buffer: &mut CircularBuffer) 
 }
 
 pub fn generate_sine_at_index(index: u32, event_buffer: &mut CircularBuffer) -> () {
-    let command = AudioCommand::InsertAtIndex(index, AudioGenerator::SineGenerator);
+    let command = AudioCommand::InsertAtIndex(
+        index,
+        AudioGenerator::SineGenerator(Box::new(AudioParameter::Constant(440.0))),
+    );
     write_command(&command, event_buffer);
 }
 
@@ -106,7 +137,9 @@ pub fn stop_at_index(index: u32, event_buffer: &mut CircularBuffer) -> () {
 }
 
 pub fn generate_and_forget_sine(event_buffer: &mut CircularBuffer) -> () {
-    let command = AudioCommand::InsertAndForget(AudioGenerator::SineGenerator);
+    let command = AudioCommand::InsertAndForget(AudioGenerator::SineGenerator(Box::new(
+        AudioParameter::Constant(440.0),
+    )));
     write_command(&command, event_buffer);
 }
 

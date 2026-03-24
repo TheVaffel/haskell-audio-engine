@@ -38,7 +38,7 @@ import ForeignInterface
       volumeMarker,
       bellMarker,
       customMarker,
-      custom2Marker, envelopeMarker )
+      custom2Marker, envelopeMarker, AudioParameter (Constant, External, Signal), externalMarker, constantMarker, signalMarker )
 
 import Design.Alarm (cosc, cosFadingStreams, cyclingSounds, fullAlarm, alarmHappyBlips, alarmAffirmative, alarmActivate, alarmInvaders, alarmInformation, alarmMessage, alarmFinished, alarmError, alarmBuzzer, alarmBuzzer2, alarmCustom)
 import Design.Police (exponentialOscillator, exponentialFreq, fullSiren, semiFullSiren)
@@ -51,8 +51,16 @@ eventGeneratorMap = Map.fromList [(insertAtIndexMarker, \(index:restArgs) -> Ins
                                   (exitMarker, const Exit)
                                   ]
 
+parameterMap :: Map.Map Int ([ElementType] -> (AudioParameter, [ElementType]))
+parameterMap = Map.fromList [(constantMarker, \(f:rest) -> (Constant f, rest)),
+                             (externalMarker, \(f:rest) -> (External (round f), rest)),
+                             (signalMarker, \(id:rest0) -> let
+                                 (signal, rest1) = (generatorCommandMap Map.! round id) rest0
+                                 in
+                                 (Signal signal, rest1))]
+
 generatorCommandMap :: Map.Map Int ([ElementType] -> (AudioGenerator, [ElementType]))
-generatorCommandMap = Map.fromList [(sineGeneratorMarker, (,) SineGenerator),
+generatorCommandMap = Map.fromList [(sineGeneratorMarker, parseParameterized SineGenerator ),
                                     (sineGeneratorWithFrequencyMarker, \(f:rest) -> (SineGeneratorWithFrequency f, rest)),
                                      (modulateOpMarker, parseBinaryOperation ModulateOp),
                                      (mixOpMarker, parseBinaryOperation MixOp),
@@ -64,6 +72,12 @@ generatorCommandMap = Map.fromList [(sineGeneratorMarker, (,) SineGenerator),
                                      (customMarker, \(f:rest) -> (Custom f, rest)),
                                      (custom2Marker, \(f:rest) -> (Custom2 f, rest))
                                    ] :: Map.Map Int ([ElementType] -> (AudioGenerator, [ElementType]))
+
+
+parseParameterized :: (AudioParameter -> AudioGenerator) -> [ElementType] -> (AudioGenerator, [ElementType])
+parseParameterized op (id0:r0) = let (param, rest) = (parameterMap Map.! round id0) r0
+                                 in
+                                   (op param, rest)
 
 parseBinaryOperation :: (AudioGenerator -> AudioGenerator -> AudioGenerator) -> [ElementType] -> (AudioGenerator, [ElementType])
 parseBinaryOperation op (id0:r0) = let (gen0, id1:r1) = (generatorCommandMap Map.! round id0) r0
@@ -94,7 +108,7 @@ createAudioCommandFromInput (commandTypeF:restArgs) =
 createStreamFromAudioCommand :: SignalType sig => AudioGenerator -> sig ElementType
 createStreamFromAudioCommand generatorCommand =
   case generatorCommand of
-    SineGenerator -> Cut.take (3 * sampleRate) sineWave
+    SineGenerator _ -> Cut.take (3 * sampleRate) sineWave
     SineGeneratorWithFrequency freq -> sineWaveWithFrequency freq
     MixOp gen0 gen1 -> Sig.mix (createStreamFromAudioCommand gen0) (createStreamFromAudioCommand gen1)
     ModulateOp gen0 gen1 -> Filt.envelope (createStreamFromAudioCommand gen0)  (createStreamFromAudioCommand gen1)

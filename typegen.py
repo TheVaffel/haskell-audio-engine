@@ -11,10 +11,17 @@ AUDIO_COMMANDS = [
     ('InsertAndForget', ['signal']),
     ('StopAtIndex', ['int']),
     ('Exit', []),
-]
+    ('SetExternalParameter', ['int', 'float', 'float']),
+];
+
+AUDIO_PARAMETERS = [
+    ('External', ['int']),
+    ('Constant', ['float']),
+    ('Signal', ['signal'])
+];
 
 AUDIO_GENERATORS = [
-    ('SineGenerator', []),
+    ('SineGenerator', ['parameter']),
     ('SineGeneratorWithFrequency', ['float']),
     ('ModulateOp', ['signal', 'signal']),
     ('MixOp', ['signal', 'signal']),
@@ -25,7 +32,7 @@ AUDIO_GENERATORS = [
     ('Custom2', ['float'])
 ];
 
-ALL_SYMBOLS = [*AUDIO_COMMANDS, *AUDIO_GENERATORS]
+ALL_SYMBOLS = [*AUDIO_COMMANDS, *AUDIO_GENERATORS, *AUDIO_PARAMETERS]
 
 
 def gen_rust():
@@ -36,13 +43,21 @@ def gen_rust():
         rust_lines.append(f'    {ALL_SYMBOLS[symbol_index][0]} = {str(symbol_index)},');
     rust_lines.append('}\n');
 
+    rust_lines.append('#[derive(Clone)]\npub enum AudioParameter {');
+    for audio_parameter in AUDIO_PARAMETERS:
+        if len(audio_parameter[1]) == 0:
+            rust_lines.append(f'    {audio_parameter[0]},');
+        else:
+            rust_lines.append(f'    {audio_parameter[0]}({','.join([translate_rust_type_with_box(x) for x in audio_parameter[1]])}),');
+    rust_lines.append('}\n');
+
     rust_lines.append('#[derive(Clone)]\npub enum AudioCommand {');
     for audio_command in AUDIO_COMMANDS:
         if len(audio_command[1]) == 0:
             rust_lines.append(f'    {audio_command[0]},');
         else:
             rust_lines.append(f'    {audio_command[0]}({','.join([translate_rust_type(x) for x in audio_command[1]])}),');
-    rust_lines.append('}\n')
+    rust_lines.append('}\n');
 
     rust_lines.append('#[derive(Clone)]\npub enum AudioGenerator {');
     for audio_generator in AUDIO_GENERATORS:
@@ -61,6 +76,7 @@ def translate_rust_type(type_name):
         return 'AudioGenerator'
     elif type_name == 'int':
         return 'u32'
+    raise "Unsupported type for (unboxed) rust translation: " + type_name
 
 def translate_rust_type_with_box(type_name):
     if type_name == 'float':
@@ -69,6 +85,9 @@ def translate_rust_type_with_box(type_name):
         return 'Box<AudioGenerator>'
     elif type_name == 'int':
         return 'u32'
+    elif type_name == 'parameter':
+        return 'Box<AudioParameter>'
+    raise "Unsupported type for boxed rust translation: " + type_name
 
 def gen_haskell():
     haskell_lines = []
@@ -85,6 +104,12 @@ def gen_haskell():
         haskell_lines.append(prepend + f'{audio_command[0]} {' '.join([('!' + translate_haskell_type(x)) for x in audio_command[1]])}')
         prepend = '    | '
     haskell_lines.append('    deriving Show\n');
+
+    prepend = 'data AudioParameter = ';
+    for audio_parameter in AUDIO_PARAMETERS:
+        haskell_lines.append(prepend + f'{audio_parameter[0]} {' '.join([('!' + translate_haskell_type(x)) for x in audio_parameter[1]])}');
+        prepend = '    | ';
+    haskell_lines.append ('    deriving Show\n');
 
     prepend = 'data AudioGenerator = ';
     for audio_generator in AUDIO_GENERATORS:
@@ -105,6 +130,8 @@ def translate_haskell_type(tt):
         return 'AudioGenerator'
     elif tt == 'float':
         return 'Float'
+    elif tt == 'parameter':
+        return 'AudioParameter'
 
 with open(RUST_INTERFACE_FILE, 'w') as ff:
     rust_lines = gen_rust();

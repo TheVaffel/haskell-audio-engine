@@ -4,15 +4,26 @@ pub enum NumericCommand {
     InsertAndForget = 1,
     StopAtIndex = 2,
     Exit = 3,
-    SineGenerator = 4,
-    SineGeneratorWithFrequency = 5,
-    ModulateOp = 6,
-    MixOp = 7,
-    Envelope = 8,
-    Volume = 9,
-    Bell = 10,
-    Custom = 11,
-    Custom2 = 12,
+    SetExternalParameter = 4,
+    SineGenerator = 5,
+    SineGeneratorWithFrequency = 6,
+    ModulateOp = 7,
+    MixOp = 8,
+    Envelope = 9,
+    Volume = 10,
+    Bell = 11,
+    Custom = 12,
+    Custom2 = 13,
+    External = 14,
+    Constant = 15,
+    Signal = 16,
+}
+
+#[derive(Clone)]
+pub enum AudioParameter {
+    External(u32),
+    Constant(f32),
+    Signal(Box<AudioGenerator>),
 }
 
 #[derive(Clone)]
@@ -21,11 +32,12 @@ pub enum AudioCommand {
     InsertAndForget(AudioGenerator),
     StopAtIndex(u32),
     Exit,
+    SetExternalParameter(u32,f32,f32),
 }
 
 #[derive(Clone)]
 pub enum AudioGenerator {
-    SineGenerator,
+    SineGenerator(Box<AudioParameter>),
     SineGeneratorWithFrequency(f32),
     ModulateOp(Box<AudioGenerator>,Box<AudioGenerator>),
     MixOp(Box<AudioGenerator>,Box<AudioGenerator>),

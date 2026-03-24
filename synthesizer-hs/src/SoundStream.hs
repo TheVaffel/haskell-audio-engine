@@ -12,6 +12,7 @@ import qualified Synthesizer.Basic.Wave as Wave
 import qualified Synthesizer.Generic.Oscillator as Osci
 import Algebra.Additive (C(zero))
 import qualified Synthesizer.Plain.Filter.Recursive.Universal as UniFilter
+import qualified Synthesizer.Causal.Oscillator as CausOsc
 
 type ElementType = Float
 type SoundStream = SigSt.T ElementType
@@ -19,20 +20,14 @@ type WaveDef = Wave.T Float Float
 
 
 
-type SignalType sig = (SigG.Write sig ElementType,
-                        SigG.Transform sig (UniFilter.Result ElementType),
-                        SigG.Write sig (UniFilter.Parameter ElementType))
+type GeneralSignalType sig a = (SigG.Write sig a,
+                                SigG.Transform sig (UniFilter.Result a),
+                                SigG.Write sig (UniFilter.Parameter a),
+                                Cut.Transform (sig a))
+
+type SignalType sig = GeneralSignalType sig ElementType
 
 type SoundGenerator = SigState.T ElementType
-
-
-fn :: SignalType sig => sig ElementType -> sig ElementType
-fn sg = sg
-
-b :: SoundGenerator
-b = undefined
-
-a = fn b
 
 sampleRate = 44100 :: Int
 
@@ -50,5 +45,8 @@ asStream = Con.constant defaultLazySize
 -- | Converts a wave definition to a sound stream of static frequency
 -- arg0: Wave definition
 -- arg1: frequency in Hz
-staticFrequencyWave :: SignalType sig =>  WaveDef -> Float -> sig ElementType
+staticFrequencyWave :: GeneralSignalType sig ElementType =>  WaveDef -> Float -> sig ElementType
 staticFrequencyWave wave frequency = Osci.static defaultLazySize wave zero (frequency / sampleRateF)
+
+isEmpty :: GeneralSignalType sig a => sig a -> Bool
+isEmpty = not . Cut.lengthAtLeast 1
