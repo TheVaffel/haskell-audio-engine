@@ -46,19 +46,19 @@ hatFunc fullCycleTime l i = let wave = Wave.fromFunction $ \x -> if x * l >= fro
 modulate :: SignalType sig => sig ElementType -> sig ElementType -> sig ElementType
 modulate = SigG.zipWith (*)
 
-fadeOut :: Int -> SoundStream -> SoundStream
+fadeOut :: SignalType sig => Int -> sig ElementType -> sig ElementType
 fadeOut n stream =
   let envelope = line defaultLazySize n (1.0, 0.0)
   in
     Filt.envelope envelope stream
 
-fadeIn :: Int -> SoundStream -> SoundStream
+fadeIn :: SignalType sig => Int -> sig ElementType -> sig ElementType
 fadeIn n stream =
   let envelope = line defaultLazySize n (0.0, 1.0) <> constant defaultLazySize 1.0
   in
     Filt.envelope envelope stream
 
-crossFade :: Int -> SoundStream -> SoundStream -> SoundStream
+crossFade :: SignalType sig => Int -> sig ElementType -> sig ElementType -> sig ElementType
 crossFade n initial end =
   let initialFadeOut = fadeOut n initial
       endFadeIn = fadeIn n end

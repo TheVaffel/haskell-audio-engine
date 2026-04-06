@@ -1,4 +1,4 @@
-module StreamStateStore (StreamStateStore, empty, insertStream, deleteStream, insertUnmanagedStream, getSoundStreamAndAdvance, markClosed, closed) where
+module StreamStateStore (StreamStateStore, empty, insertStream, deleteStream, insertUnmanagedStream, getSoundStreamAndAdvance, markClosed, closed, setParameter) where
 
 import StreamState (StreamState, defaultFadeSize, fromStream, crossFadeState, fadeOutState, advance)
 
@@ -18,10 +18,16 @@ import Synthesizer.Generic.Control (line, constant)
 import Synthesizer.Generic.Signal (defaultLazySize)
 
 import qualified Synthesizer.Generic.Signal as SigG
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, fromJust, isJust, isNothing)
+import Parameterized (ParameterizedStream)
+import ParameterStore (StoreParameterizedStream, advanceWithStore, getStreamFromParamStore, getFadeOutParamStream)
+import Control.Applicative (liftA)
+
+import Utils (unzipFunctor)
+import Data.Tuple.Extra (second)
 
 data StreamStateStore = StreamStateStore {
-  streamMap :: !(Map.Map Int SoundStream), -- Map of global sounds with filtered state
+  streamMap :: !(Map.Map Int StoreParameterizedStream), -- Map of global sounds with filtered state
   unmanagedStreams :: !SoundStream, -- Stream combined of all "unmanaged" sound streams.
     -- These should not last longer than at most e.g. 10 seconds to ensure performance.
     -- Does not require further follow-up from controller
@@ -37,29 +43,33 @@ empty = StreamStateStore {
   closed = False
   }
 
-insertStream :: Int -> SoundStream -> StreamStateStore -> StreamStateStore
+insertStream :: Int -> StoreParameterizedStream -> StreamStateStore -> StreamStateStore
 insertStream index stream store =
-  let maybePreviousState = streamMap store Map.!? index
+  let maybePreviousStream = streamMap store Map.!? index
   in
-    case maybePreviousState of
+    case maybePreviousStream of
       Just previousStream -> let
-        newStream = crossFade defaultFadeSize previousStream stream -- crossFadeState defaultFadeSize previousStreamState (fromStream stream)
+        fadingOutStream = getFadeOutParamStream (parameterMap store) previousStream
+        prevUnmanagedStream = unmanagedStreams store
         in
-        store { streamMap = Map.insert index newStream (streamMap store) }
+        store { streamMap = Map.insert index stream (streamMap store),
+                unmanagedStreams = prevUnmanagedStream `mix` fadingOutStream }
       Nothing -> store { streamMap = Map.insert index stream (streamMap store) }
-
 
 deleteStream :: Int -> StreamStateStore -> StreamStateStore
 deleteStream index store =
   let maybePreviousStream = streamMap store Map.!? index
+      paramStore = parameterMap store
   in
     case maybePreviousStream of
       Nothing -> store
-      Just previousStream ->
-        if isEmpty previousStream then
-          store { streamMap = Map.delete index (streamMap store) }
-        else
-          store { streamMap = Map.insert index (fadeOut defaultFadeSize previousStream) (streamMap store) }
+      Just previousStream -> let
+        fadingOutStream = getFadeOutParamStream (parameterMap store) previousStream
+        prevUnmanagedStream = unmanagedStreams store
+        -- if isEmpty (previousStream paramStore) then
+        in
+          store { streamMap = Map.delete index (streamMap store),
+                  unmanagedStreams = prevUnmanagedStream `mix` fadingOutStream }
 
 setParameter :: (Int, ElementType, ElementType) -> StreamStateStore -> StreamStateStore
 setParameter (index, value, duration) store =
@@ -67,6 +77,7 @@ setParameter (index, value, duration) store =
       newParameter = line defaultLazySize (round (duration * sampleRateF)) (SigG.index previousParameter 0, value) <> constant defaultLazySize value
   in
     store { parameterMap = Map.insert index newParameter (parameterMap store) }
+
 markClosed :: StreamStateStore -> StreamStateStore
 markClosed store = store { closed = True }
 
@@ -75,11 +86,27 @@ insertUnmanagedStream stream store = store { unmanagedStreams = unmanagedStreams
 
 getSoundStreamAndAdvance :: Int -> StreamStateStore -> (SoundStream, StreamStateStore)
 getSoundStreamAndAdvance n store =
-  let indexToStreamAndNextStream = Map.map (Cut.splitAt n) (streamMap store)
-      indexToParamSegmentsAndTails = Map.map (Cut.splitAt n) (parameterMap store)
-      streams = map fst $ Map.elems indexToStreamAndNextStream
-      nextStreamMap = Map.map snd indexToStreamAndNextStream
-      (unmanagedStreamSegment, restUnmanagedStream) = Cut.splitAt n $ unmanagedStreams store
+  let
+    (paramSegments, restParams) = unzipFunctor $ Map.map (Cut.splitAt n) (parameterMap store)
+    (streamSegments, restStreamMaybes) = unzipFunctor $ Map.map (advanceWithStore n paramSegments) (streamMap store)
+    (unmanagedStreamSegment, restUnmanagedStream) = Cut.splitAt n $ unmanagedStreams store
+    totalSignal = foldl' mix unmanagedStreamSegment $ Map.elems streamSegments
+
   in
-    (foldl' mix unmanagedStreamSegment streams,
-     store { streamMap = nextStreamMap, unmanagedStreams = restUnmanagedStream })
+    (totalSignal, store { parameterMap = restParams,
+                          unmanagedStreams = restUnmanagedStream,
+                          streamMap = concatMaybeMap restStreamMaybes  })
+
+
+
+updateMap :: Ord a => [(a, Maybe b)] -> Map.Map a b -> Map.Map a b
+updateMap updates mp = let
+  insertElems = map (second fromJust) $ filter (isJust . snd) updates
+  keysToDelete = map fst $ filter (isNothing . snd) updates
+  insertElements = flip $ foldr (uncurry Map.insert)
+  deleteKeys = flip $ foldr Map.delete
+  in
+    insertElements insertElems $ deleteKeys keysToDelete mp
+
+concatMaybeMap :: Map.Map a (Maybe b) -> Map.Map a b
+concatMaybeMap = Map.map fromJust . Map.filter isJust

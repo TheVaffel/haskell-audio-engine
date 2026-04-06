@@ -4,7 +4,7 @@
 module BaseStream where
 
 import qualified Synthesizer.Generic.Noise as Noise
-import SoundStream (SoundStream, interactiveLazySize, sampleRateF, SignalType)
+import SoundStream (SoundStream, interactiveLazySize, sampleRateF, SignalType, GeneralSignalType)
 
 import qualified Synthesizer.Storable.Signal as SigSt
 import qualified Synthesizer.Basic.Wave as Wave
@@ -42,6 +42,9 @@ sineWaveWithFrequency f = Osci.static interactiveLazySize Wave.sine zero (f / sa
 
 zeroSignal :: SigG.Write sig ElementType => sig ElementType
 zeroSignal = Cut.cycle $ SigG.repeat interactiveLazySize 0.0
+
+unitSignal :: GeneralSignalType sig () => sig ()
+unitSignal = Cut.cycle $ SigG.repeat interactiveLazySize ()
 
 phasor :: SigG.Write sig ElementType => Float -> sig ElementType
 phasor freq = let fracFreq = (freq / sampleRateF) :: Float

@@ -1,3 +1,6 @@
+use std::time::Duration;
+
+use throttle::Throttle;
 use winit::event_loop::{ControlFlow, EventLoop};
 
 use winit::{
@@ -9,8 +12,8 @@ use winit::{
 };
 
 use audio_engine_rs::{
-    create_sound_buffer, enveloped_double_sine_at_index, generate_and_forget_sine, generate_bell,
-    stop_at_index, write_command, AudioCommand, AudioGenerator, CircularBuffer,
+    create_sound_buffer, enveloped_double_sine_at_index, generate_bell, set_parameter,
+    stop_at_index, write_command, AudioCommand, AudioGenerator, AudioParameter, CircularBuffer,
 };
 
 fn main() {
@@ -27,6 +30,7 @@ pub struct App {
     window: Option<Window>,
     sound_event_buffer: Box<CircularBuffer>,
     shift_pressed: bool,
+    mouse_event_throttle: Throttle,
 }
 
 impl App {
@@ -35,6 +39,7 @@ impl App {
             window: None,
             sound_event_buffer,
             shift_pressed: false,
+            mouse_event_throttle: Throttle::new(Duration::from_millis(100), 2),
         }
     }
 }
@@ -105,6 +110,18 @@ impl ApplicationHandler for App {
                         );
                     }
 
+                    if event.logical_key == Key::Character("r".into()) {
+                        write_command(
+                            &AudioCommand::InsertAtIndex(
+                                100003,
+                                AudioGenerator::SineGenerator(Box::new(AudioParameter::External(
+                                    0,
+                                ))),
+                            ),
+                            &mut self.sound_event_buffer,
+                        );
+                    }
+
                     let maybe_index = find_index_for_key_event(event.physical_key);
                     println!("Physical key: {:?}", event.physical_key);
                     return match maybe_index {
@@ -137,12 +154,34 @@ impl ApplicationHandler for App {
                         );
                     }
 
+                    if event.logical_key == Key::Character("r".into()) {
+                        write_command(
+                            &AudioCommand::StopAtIndex(100003),
+                            &mut self.sound_event_buffer,
+                        );
+                    }
+
                     let maybe_index = find_index_for_key_event(event.physical_key);
 
                     return match maybe_index {
                         Some(index) => stop_at_index(index as u32, &mut self.sound_event_buffer),
                         None => (),
                     };
+                }
+            }
+            WindowEvent::CursorMoved {
+                device_id: _device,
+                position,
+            } => {
+                let throttle_ready = self.mouse_event_throttle.accept();
+                match (throttle_ready, &self.window) {
+                    (Ok(_), &Some(ref window)) => set_parameter(
+                        0,
+                        position.y as f32 / window.outer_size().height as f32 * 400.0 + 40.0,
+                        0.100,
+                        &mut self.sound_event_buffer,
+                    ),
+                    _ => {}
                 }
             }
             _ => (),

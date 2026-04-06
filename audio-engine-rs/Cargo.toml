@@ -7,5 +7,9 @@ edition = "2024"
 
 winit = "0.30.11"
 
+[dev-dependencies]
+
+throttle = "0.1.0"
+
 [profile.dev]
 rpath = true

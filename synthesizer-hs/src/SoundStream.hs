@@ -18,9 +18,9 @@ type ElementType = Float
 type SoundStream = SigSt.T ElementType
 type WaveDef = Wave.T Float Float
 
-
-
 type GeneralSignalType sig a = (SigG.Write sig a,
+                                SigG.Read0 sig,
+                                SigG.Storage (sig a),
                                 SigG.Transform sig (UniFilter.Result a),
                                 SigG.Write sig (UniFilter.Parameter a),
                                 Cut.Transform (sig a))

@@ -1,7 +1,7 @@
 module Commands (updateStoreFromEvent) where
 
 import SoundStream (SoundStream, sampleRate, sampleRateF, SignalType, ElementType)
-import StreamStateStore (StreamStateStore, insertStream, deleteStream, insertUnmanagedStream, markClosed)
+import StreamStateStore (StreamStateStore, insertStream, deleteStream, insertUnmanagedStream, markClosed, setParameter)
 import BaseStream (sineWave, sineWaveWithFrequency, zeroSignal, noise, lfo)
 
 import qualified Synthesizer.Generic.Cut as Cut (take)
@@ -38,16 +38,21 @@ import ForeignInterface
       volumeMarker,
       bellMarker,
       customMarker,
-      custom2Marker, envelopeMarker, AudioParameter (Constant, External, Signal), externalMarker, constantMarker, signalMarker )
+      custom2Marker, envelopeMarker, AudioParameter (Constant, External, Signal), externalMarker, constantMarker, signalMarker, setExternalParameterMarker )
 
 import Design.Alarm (cosc, cosFadingStreams, cyclingSounds, fullAlarm, alarmHappyBlips, alarmAffirmative, alarmActivate, alarmInvaders, alarmInformation, alarmMessage, alarmFinished, alarmError, alarmBuzzer, alarmBuzzer2, alarmCustom)
 import Design.Police (exponentialOscillator, exponentialFreq, fullSiren, semiFullSiren)
 import Synthesizer.Storable.Signal (defaultChunkSize)
+import ParameterStore (StoreParameterizedStream, unparameterizedStream, storeParameterizedStreamFromIndex, combineParameterizedSignals, mapStoreParameterized, getStreamFromParamStore)
+import Synthesizer.State.Signal (toStorableSignal)
+import Parameterized (freqParamSine)
+import qualified Synthesizer.Causal.Process as Causal
 
 
 eventGeneratorMap = Map.fromList [(insertAtIndexMarker, \(index:restArgs) -> InsertAtIndex (round index) $ createAudioCommandFromInput restArgs),
                                   (insertAndForgetMarker, InsertAndForget . createAudioCommandFromInput),
                                   (stopAtIndexMarker, StopAtIndex . round . head),
+                                  (setExternalParameterMarker, \(index:value:duration:rest) -> SetExternalParameter (round index) value duration),
                                   (exitMarker, const Exit)
                                   ]
 
@@ -105,25 +110,26 @@ createAudioCommandFromInput (commandTypeF:restArgs) =
   in
     maybe NoGenerator fst maybeGenerator
 
-createStreamFromAudioCommand :: SignalType sig => AudioGenerator -> sig ElementType
+createStreamFromAudioCommand :: AudioGenerator -> StoreParameterizedStream -- sig ElementType
 createStreamFromAudioCommand generatorCommand =
   case generatorCommand of
-    SineGenerator _ -> Cut.take (3 * sampleRate) sineWave
-    SineGeneratorWithFrequency freq -> sineWaveWithFrequency freq
-    MixOp gen0 gen1 -> Sig.mix (createStreamFromAudioCommand gen0) (createStreamFromAudioCommand gen1)
-    ModulateOp gen0 gen1 -> Filt.envelope (createStreamFromAudioCommand gen0)  (createStreamFromAudioCommand gen1)
-    Envelope attackT peakAmp descentT -> Env.envelope attackT peakAmp descentT
-    Volume volume gen0 -> Sig.zipWith (*) (Con.constant defaultLazySize volume) (createStreamFromAudioCommand gen0)
-    Bell frequency -> bell frequency
+    -- SineGenerator _ -> Cut.take (3 * sampleRate) sineWave
+    SineGenerator (External paramIndex) -> storeParameterizedStreamFromIndex paramIndex (fmap (*0.1) freqParamSine)
+    SineGeneratorWithFrequency freq -> unparameterizedStream $  (sineWaveWithFrequency freq :: SigState.T ElementType)
+    MixOp gen0 gen1 -> combineParameterizedSignals (+) (createStreamFromAudioCommand gen0) (createStreamFromAudioCommand gen1)
+    ModulateOp gen0 gen1 -> combineParameterizedSignals (*) (createStreamFromAudioCommand gen0)  (createStreamFromAudioCommand gen1)
+    Envelope attackT peakAmp descentT -> unparameterizedStream $ (Env.envelope attackT peakAmp descentT :: SigState.T ElementType)
+    Volume volume gen0 -> mapStoreParameterized (* volume) $ createStreamFromAudioCommand gen0
+    Bell frequency -> unparameterizedStream $ (bell frequency :: SigState.T ElementType)
     -- Custom frequency -> Sig.map (*0.2) $ cosFadingStreams (map sineWaveWithFrequency [frequency, frequency * 1.4, frequency * 1.8])
-    Custom _ -> Sig.map (*0.1) $ Sig.fromState defaultLazySize (semiFullSiren 0)
+    Custom _ -> unparameterizedStream $ Sig.map (*0.1) (semiFullSiren 0)
     -- Custom2 frequency -> Sig.map (*0.2) cyclingSounds
     -- Custom frequency -> Sig.map (*0.2) $ cosc frequency 0.0
     -- Custom2 frequency -> Sig.map (*0.2) $ cosc frequency 0.2
     -- Custom2 frequency -> fullAlarm alarmCustom
     -- Custom2 frequency -> Sig.map (*0.1) $ exponentialFreq 2.0
-    Custom2 _ -> Sig.map (*0.1) $ Sig.fromState defaultLazySize (fullSiren 0)
-    NoGenerator -> zeroSignal
+    Custom2 _ -> unparameterizedStream $ Sig.map (*0.1) (fullSiren 0)
+    NoGenerator -> unparameterizedStream (zeroSignal :: SigState.T ElementType)
 
 custom :: SignalType sig => ElementType -> sig ElementType
 custom frequency = let lf = lfo 2
@@ -135,11 +141,12 @@ custom frequency = let lf = lfo 2
 updateStoreFromCommand :: AudioCommand -> StreamStateStore -> StreamStateStore
 updateStoreFromCommand command store =
   case command of
-    InsertAtIndex index generatorCommand -> trace ("Inserting stream at index " ++ show index) $ insertStream index (SigState.toStorableSignal defaultChunkSize stream) store
+    InsertAtIndex index generatorCommand -> trace ("Inserting stream at index " ++ show index) $ insertStream index stream store
       where
         stream = createStreamFromAudioCommand generatorCommand
     StopAtIndex index -> deleteStream index store
-    InsertAndForget generatorCommand -> insertUnmanagedStream (Cut.take (10 * sampleRate) (SigState.toStorableSignal defaultChunkSize stream)) store
+    InsertAndForget generatorCommand -> insertUnmanagedStream (Cut.take (10 * sampleRate) $ getStreamFromParamStore Map.empty stream) store
       where
         stream = createStreamFromAudioCommand generatorCommand
+    SetExternalParameter index value duration  -> setParameter (index, value, duration) store
     Exit -> markClosed store

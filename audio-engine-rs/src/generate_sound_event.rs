@@ -178,6 +178,16 @@ pub fn generate_sine_at_index_with_frequency(
     write_command(&command, event_buffer);
 }
 
+pub fn set_parameter(
+    param_index: u32,
+    value: f32,
+    duration: f32,
+    event_buffer: &mut CircularBuffer,
+) -> () {
+    let command = AudioCommand::SetExternalParameter(param_index, value, duration);
+    write_command(&command, event_buffer);
+}
+
 pub fn close_stream(event_buffer: &mut CircularBuffer) -> () {
     let command = AudioCommand::Exit;
     write_command(&command, event_buffer);

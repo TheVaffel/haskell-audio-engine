@@ -8,7 +8,7 @@ module StreamState (StreamState
                    , fadeOutState
                    , crossFadeState) where
 
-import SoundStream (SoundStream, sampleRate)
+import SoundStream (SoundStream, sampleRateF)
 
 import Operations (fadeOut, fadeIn, crossFade)
 
@@ -25,7 +25,7 @@ to apply and unapply effects on the stream.
 -}
 data StreamState = StreamState { originalStream :: !SoundStream, currentStream :: !SoundStream }
 
-defaultFadeSize = round (0.01 * fromIntegral sampleRate) :: Int
+defaultFadeSize = round (0.01 * sampleRateF) :: Int
 
 getCurrentStream :: StreamState -> SoundStream
 getCurrentStream = currentStream
