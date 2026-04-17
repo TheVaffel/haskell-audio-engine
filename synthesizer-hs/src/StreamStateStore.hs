@@ -27,7 +27,7 @@ import Utils (unzipFunctor)
 import Data.Tuple.Extra (second)
 
 data StreamStateStore = StreamStateStore {
-  streamMap :: !(Map.Map Int StoreParameterizedStream), -- Map of global sounds with filtered state
+  streamMap :: !(Map.Map Int (StoreParameterizedStream ElementType)), -- Map of global sounds with filtered state
   unmanagedStreams :: !SoundStream, -- Stream combined of all "unmanaged" sound streams.
     -- These should not last longer than at most e.g. 10 seconds to ensure performance.
     -- Does not require further follow-up from controller
@@ -43,7 +43,7 @@ empty = StreamStateStore {
   closed = False
   }
 
-insertStream :: Int -> StoreParameterizedStream -> StreamStateStore -> StreamStateStore
+insertStream :: Int -> StoreParameterizedStream ElementType -> StreamStateStore -> StreamStateStore
 insertStream index stream store =
   let maybePreviousStream = streamMap store Map.!? index
   in

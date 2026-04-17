@@ -12,11 +12,9 @@ mixOpMarker = 8 :: Int
 envelopeMarker = 9 :: Int
 volumeMarker = 10 :: Int
 bellMarker = 11 :: Int
-customMarker = 12 :: Int
-custom2Marker = 13 :: Int
-externalMarker = 14 :: Int
-constantMarker = 15 :: Int
-signalMarker = 16 :: Int
+externalParameterMarker = 12 :: Int
+customMarker = 13 :: Int
+custom2Marker = 14 :: Int
 
 
 data AudioCommand = InsertAtIndex !Int !AudioGenerator
@@ -26,18 +24,14 @@ data AudioCommand = InsertAtIndex !Int !AudioGenerator
     | SetExternalParameter !Int !Float !Float
     deriving Show
 
-data AudioParameter = External !Int
-    | Constant !Float
-    | Signal !AudioGenerator
-    deriving Show
-
-data AudioGenerator = SineGenerator !AudioParameter
+data AudioGenerator = SineGenerator !AudioGenerator
     | SineGeneratorWithFrequency !Float
     | ModulateOp !AudioGenerator !AudioGenerator
     | MixOp !AudioGenerator !AudioGenerator
     | Envelope !Float !Float !Float
     | Volume !Float !AudioGenerator
     | Bell !Float
+    | ExternalParameter !Int
     | Custom !Float
     | Custom2 !Float
     | NoGenerator

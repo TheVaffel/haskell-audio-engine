@@ -5,7 +5,7 @@ mod generate_sound_event;
 use std::thread;
 
 pub use circular_buffer::CircularBuffer;
-pub use foreign_interface::{AudioCommand, AudioGenerator, AudioParameter};
+pub use foreign_interface::{AudioCommand, AudioGenerator};
 pub use generate_sound_event::*;
 
 unsafe extern "C" {

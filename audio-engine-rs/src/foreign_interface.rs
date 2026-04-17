@@ -12,18 +12,9 @@ pub enum NumericCommand {
     Envelope = 9,
     Volume = 10,
     Bell = 11,
-    Custom = 12,
-    Custom2 = 13,
-    External = 14,
-    Constant = 15,
-    Signal = 16,
-}
-
-#[derive(Clone)]
-pub enum AudioParameter {
-    External(u32),
-    Constant(f32),
-    Signal(Box<AudioGenerator>),
+    ExternalParameter = 12,
+    Custom = 13,
+    Custom2 = 14,
 }
 
 #[derive(Clone)]
@@ -37,13 +28,14 @@ pub enum AudioCommand {
 
 #[derive(Clone)]
 pub enum AudioGenerator {
-    SineGenerator(Box<AudioParameter>),
+    SineGenerator(Box<AudioGenerator>),
     SineGeneratorWithFrequency(f32),
     ModulateOp(Box<AudioGenerator>,Box<AudioGenerator>),
     MixOp(Box<AudioGenerator>,Box<AudioGenerator>),
     Envelope(f32,f32,f32),
     Volume(f32,Box<AudioGenerator>),
     Bell(f32),
+    ExternalParameter(u32),
     Custom(f32),
     Custom2(f32),
 }

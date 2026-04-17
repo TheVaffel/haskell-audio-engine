@@ -13,7 +13,7 @@ use winit::{
 
 use audio_engine_rs::{
     create_sound_buffer, enveloped_double_sine_at_index, generate_bell, set_parameter,
-    stop_at_index, write_command, AudioCommand, AudioGenerator, AudioParameter, CircularBuffer,
+    stop_at_index, write_command, AudioCommand, AudioGenerator, CircularBuffer,
 };
 
 fn main() {
@@ -114,9 +114,9 @@ impl ApplicationHandler for App {
                         write_command(
                             &AudioCommand::InsertAtIndex(
                                 100003,
-                                AudioGenerator::SineGenerator(Box::new(AudioParameter::External(
-                                    0,
-                                ))),
+                                AudioGenerator::SineGenerator(Box::new(
+                                    AudioGenerator::ExternalParameter(0),
+                                )),
                             ),
                             &mut self.sound_event_buffer,
                         );

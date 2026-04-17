@@ -25,7 +25,7 @@ import Synthesizer.Generic.Signal (defaultLazySize)
 import ForeignInterface
     ( AudioGenerator(NoGenerator, SineGenerator,
                      SineGeneratorWithFrequency, MixOp, ModulateOp, Envelope, Volume,
-                     Bell, Custom, Custom2),
+                     ExternalParameter, Bell, Custom, Custom2),
       AudioCommand(..),
       insertAtIndexMarker,
       insertAndForgetMarker,
@@ -38,16 +38,15 @@ import ForeignInterface
       volumeMarker,
       bellMarker,
       customMarker,
-      custom2Marker, envelopeMarker, AudioParameter (Constant, External, Signal), externalMarker, constantMarker, signalMarker, setExternalParameterMarker )
+      custom2Marker, envelopeMarker, setExternalParameterMarker, externalParameterMarker )
 
 import Design.Alarm (cosc, cosFadingStreams, cyclingSounds, fullAlarm, alarmHappyBlips, alarmAffirmative, alarmActivate, alarmInvaders, alarmInformation, alarmMessage, alarmFinished, alarmError, alarmBuzzer, alarmBuzzer2, alarmCustom)
 import Design.Police (exponentialOscillator, exponentialFreq, fullSiren, semiFullSiren)
 import Synthesizer.Storable.Signal (defaultChunkSize)
-import ParameterStore (StoreParameterizedStream, unparameterizedStream, storeParameterizedStreamFromIndex, combineParameterizedSignals, mapStoreParameterized, getStreamFromParamStore)
+import ParameterStore (StoreParameterizedStream, unparameterizedStream, storeParameterizedStreamFromIndex, mapStoreParameterized, getStreamFromParamStore, composeParameterizedStream, combineParameterizedSignals)
 import Synthesizer.State.Signal (toStorableSignal)
-import Parameterized (freqParamSine)
+import Parameterized (freqParamSine, ParameterizedStream)
 import qualified Synthesizer.Causal.Process as Causal
-
 
 eventGeneratorMap = Map.fromList [(insertAtIndexMarker, \(index:restArgs) -> InsertAtIndex (round index) $ createAudioCommandFromInput restArgs),
                                   (insertAndForgetMarker, InsertAndForget . createAudioCommandFromInput),
@@ -56,33 +55,23 @@ eventGeneratorMap = Map.fromList [(insertAtIndexMarker, \(index:restArgs) -> Ins
                                   (exitMarker, const Exit)
                                   ]
 
-parameterMap :: Map.Map Int ([ElementType] -> (AudioParameter, [ElementType]))
-parameterMap = Map.fromList [(constantMarker, \(f:rest) -> (Constant f, rest)),
-                             (externalMarker, \(f:rest) -> (External (round f), rest)),
-                             (signalMarker, \(id:rest0) -> let
-                                 (signal, rest1) = (generatorCommandMap Map.! round id) rest0
-                                 in
-                                 (Signal signal, rest1))]
-
 generatorCommandMap :: Map.Map Int ([ElementType] -> (AudioGenerator, [ElementType]))
-generatorCommandMap = Map.fromList [(sineGeneratorMarker, parseParameterized SineGenerator ),
+generatorCommandMap = Map.fromList [(sineGeneratorMarker, parseUnaryOperation SineGenerator ),
                                     (sineGeneratorWithFrequencyMarker, \(f:rest) -> (SineGeneratorWithFrequency f, rest)),
                                      (modulateOpMarker, parseBinaryOperation ModulateOp),
                                      (mixOpMarker, parseBinaryOperation MixOp),
                                      (envelopeMarker, \(attackT:peakAmp:descentT:rest) -> (Envelope attackT peakAmp descentT, rest)),
-                                     (volumeMarker, \(f:commandOp:r0) ->
-                                         let (command, rest) = (generatorCommandMap Map.! round commandOp) r0 in
-                                           (Volume f command, rest)),
+                                     (volumeMarker, \(f:rest) -> parseUnaryOperation (Volume f) rest),
                                      (bellMarker, \(f:rest) -> (Bell f, rest)),
+                                     (externalParameterMarker, \(f:rest) -> (ExternalParameter $ round f, rest)),
                                      (customMarker, \(f:rest) -> (Custom f, rest)),
                                      (custom2Marker, \(f:rest) -> (Custom2 f, rest))
                                    ] :: Map.Map Int ([ElementType] -> (AudioGenerator, [ElementType]))
 
-
-parseParameterized :: (AudioParameter -> AudioGenerator) -> [ElementType] -> (AudioGenerator, [ElementType])
-parseParameterized op (id0:r0) = let (param, rest) = (parameterMap Map.! round id0) r0
-                                 in
-                                   (op param, rest)
+parseUnaryOperation :: (AudioGenerator -> AudioGenerator) -> [ElementType] -> (AudioGenerator, [ElementType])
+parseUnaryOperation op (id0:r0) = let (gen0, rest) = (generatorCommandMap Map.! round id0) r0
+                                  in
+                                    (op gen0, rest)
 
 parseBinaryOperation :: (AudioGenerator -> AudioGenerator -> AudioGenerator) -> [ElementType] -> (AudioGenerator, [ElementType])
 parseBinaryOperation op (id0:r0) = let (gen0, id1:r1) = (generatorCommandMap Map.! round id0) r0
@@ -110,11 +99,11 @@ createAudioCommandFromInput (commandTypeF:restArgs) =
   in
     maybe NoGenerator fst maybeGenerator
 
-createStreamFromAudioCommand :: AudioGenerator -> StoreParameterizedStream -- sig ElementType
+createStreamFromAudioCommand :: AudioGenerator -> StoreParameterizedStream ElementType -- sig ElementType
 createStreamFromAudioCommand generatorCommand =
   case generatorCommand of
     -- SineGenerator _ -> Cut.take (3 * sampleRate) sineWave
-    SineGenerator (External paramIndex) -> storeParameterizedStreamFromIndex paramIndex (fmap (*0.1) freqParamSine)
+    SineGenerator gen0 -> composeParameterizedStream (fmap (*0.1) freqParamSine) (createStreamFromAudioCommand gen0)
     SineGeneratorWithFrequency freq -> unparameterizedStream $  (sineWaveWithFrequency freq :: SigState.T ElementType)
     MixOp gen0 gen1 -> combineParameterizedSignals (+) (createStreamFromAudioCommand gen0) (createStreamFromAudioCommand gen1)
     ModulateOp gen0 gen1 -> combineParameterizedSignals (*) (createStreamFromAudioCommand gen0)  (createStreamFromAudioCommand gen1)
@@ -129,7 +118,13 @@ createStreamFromAudioCommand generatorCommand =
     -- Custom2 frequency -> fullAlarm alarmCustom
     -- Custom2 frequency -> Sig.map (*0.1) $ exponentialFreq 2.0
     Custom2 _ -> unparameterizedStream $ Sig.map (*0.1) (fullSiren 0)
+    ExternalParameter ind -> storeParameterizedStreamFromIndex ind Causal.id
     NoGenerator -> unparameterizedStream (zeroSignal :: SigState.T ElementType)
+
+{- getParameterizedStream :: ParameterizedStream ElementType ElementType -> AudioGenerator -> StoreParameterizedStream
+getParameterizedStream paramStream (ExternalParameter ind) = storeParameterizedStreamFromIndex ind paramStream
+getParameterizedStream paramStream otherGenerator = let innerStreamGenerator = createStreamFromAudioCommand otherGenerator -}
+
 
 custom :: SignalType sig => ElementType -> sig ElementType
 custom frequency = let lf = lfo 2
