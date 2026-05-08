@@ -25,7 +25,7 @@ import Synthesizer.Generic.Signal (defaultLazySize)
 import ForeignInterface
     ( AudioGenerator(NoGenerator, SineGenerator,
                      SineGeneratorWithFrequency, MixOp, ModulateOp, Envelope, Volume,
-                     ExternalParameter, Bell, Custom, Custom2),
+                     ExternalParameter, Bell, DistanceFactor, Custom, Custom2),
       AudioCommand(..),
       insertAtIndexMarker,
       insertAndForgetMarker,
@@ -38,20 +38,24 @@ import ForeignInterface
       volumeMarker,
       bellMarker,
       customMarker,
-      custom2Marker, envelopeMarker, setExternalParameterMarker, externalParameterMarker )
+      custom2Marker, envelopeMarker, setExternalParameterMarker, externalParameterMarker, distanceFactorMarker, setExternalParameter2Marker, setExternalParameter3Marker )
 
 import Design.Alarm (cosc, cosFadingStreams, cyclingSounds, fullAlarm, alarmHappyBlips, alarmAffirmative, alarmActivate, alarmInvaders, alarmInformation, alarmMessage, alarmFinished, alarmError, alarmBuzzer, alarmBuzzer2, alarmCustom)
 import Design.Police (exponentialOscillator, exponentialFreq, fullSiren, semiFullSiren)
 import Synthesizer.Storable.Signal (defaultChunkSize)
-import ParameterStore (StoreParameterizedStream, unparameterizedStream, storeParameterizedStreamFromIndex, mapStoreParameterized, getStreamFromParamStore, composeParameterizedStream, combineParameterizedSignals)
+import ParameterStore (StoreParameterizedStream, unparameterizedStream, storeParameterizedStreamFromIndex, mapStoreParameterized, getStreamFromParamStore, composeParameterizedStream, combineParameterizedSignals, storeParameterizedStreamFromIndex3)
 import Synthesizer.State.Signal (toStorableSignal)
 import Parameterized (freqParamSine, ParameterizedStream)
 import qualified Synthesizer.Causal.Process as Causal
+import Spatial (distanceFactorStream)
+import qualified Data.List as SigG
 
 eventGeneratorMap = Map.fromList [(insertAtIndexMarker, \(index:restArgs) -> InsertAtIndex (round index) $ createAudioCommandFromInput restArgs),
                                   (insertAndForgetMarker, InsertAndForget . createAudioCommandFromInput),
                                   (stopAtIndexMarker, StopAtIndex . round . head),
                                   (setExternalParameterMarker, \(index:value:duration:rest) -> SetExternalParameter (round index) value duration),
+                                  (setExternalParameter2Marker, \(i0:i1:f0:f1:duration:rest) -> SetExternalParameter2 (round i0, round i1) (f0, f1) duration),
+                                  (setExternalParameter3Marker, \(i0:i1:i2:f0:f1:f2:duration:rest) -> SetExternalParameter3 (round i0, round i1, round i2) (f0, f1, f2) duration),
                                   (exitMarker, const Exit)
                                   ]
 
@@ -62,6 +66,7 @@ generatorCommandMap = Map.fromList [(sineGeneratorMarker, parseUnaryOperation Si
                                      (mixOpMarker, parseBinaryOperation MixOp),
                                      (envelopeMarker, \(attackT:peakAmp:descentT:rest) -> (Envelope attackT peakAmp descentT, rest)),
                                      (volumeMarker, \(f:rest) -> parseUnaryOperation (Volume f) rest),
+                                     (distanceFactorMarker, \(xi:yi:zi:rest) -> parseUnaryOperation (DistanceFactor (round xi, round yi, round zi)) rest),
                                      (bellMarker, \(f:rest) -> (Bell f, rest)),
                                      (externalParameterMarker, \(f:rest) -> (ExternalParameter $ round f, rest)),
                                      (customMarker, \(f:rest) -> (Custom f, rest)),
@@ -99,7 +104,7 @@ createAudioCommandFromInput (commandTypeF:restArgs) =
   in
     maybe NoGenerator fst maybeGenerator
 
-createStreamFromAudioCommand :: AudioGenerator -> StoreParameterizedStream ElementType -- sig ElementType
+createStreamFromAudioCommand :: AudioGenerator -> StoreParameterizedStream ElementType
 createStreamFromAudioCommand generatorCommand =
   case generatorCommand of
     -- SineGenerator _ -> Cut.take (3 * sampleRate) sineWave
@@ -110,6 +115,11 @@ createStreamFromAudioCommand generatorCommand =
     Envelope attackT peakAmp descentT -> unparameterizedStream $ (Env.envelope attackT peakAmp descentT :: SigState.T ElementType)
     Volume volume gen0 -> mapStoreParameterized (* volume) $ createStreamFromAudioCommand gen0
     Bell frequency -> unparameterizedStream $ (bell frequency :: SigState.T ElementType)
+    DistanceFactor posIndices gen ->
+      let positionSignal = storeParameterizedStreamFromIndex3 posIndices Causal.id :: StoreParameterizedStream (ElementType, ElementType, ElementType)
+      in
+        combineParameterizedSignals (*) (createStreamFromAudioCommand gen) (distanceFactorStream positionSignal)
+
     -- Custom frequency -> Sig.map (*0.2) $ cosFadingStreams (map sineWaveWithFrequency [frequency, frequency * 1.4, frequency * 1.8])
     Custom _ -> unparameterizedStream $ Sig.map (*0.1) (semiFullSiren 0)
     -- Custom2 frequency -> Sig.map (*0.2) cyclingSounds
@@ -120,10 +130,6 @@ createStreamFromAudioCommand generatorCommand =
     Custom2 _ -> unparameterizedStream $ Sig.map (*0.1) (fullSiren 0)
     ExternalParameter ind -> storeParameterizedStreamFromIndex ind Causal.id
     NoGenerator -> unparameterizedStream (zeroSignal :: SigState.T ElementType)
-
-{- getParameterizedStream :: ParameterizedStream ElementType ElementType -> AudioGenerator -> StoreParameterizedStream
-getParameterizedStream paramStream (ExternalParameter ind) = storeParameterizedStreamFromIndex ind paramStream
-getParameterizedStream paramStream otherGenerator = let innerStreamGenerator = createStreamFromAudioCommand otherGenerator -}
 
 
 custom :: SignalType sig => ElementType -> sig ElementType
@@ -143,5 +149,10 @@ updateStoreFromCommand command store =
     InsertAndForget generatorCommand -> insertUnmanagedStream (Cut.take (10 * sampleRate) $ getStreamFromParamStore Map.empty stream) store
       where
         stream = createStreamFromAudioCommand generatorCommand
-    SetExternalParameter index value duration  -> setParameter (index, value, duration) store
+    SetExternalParameter index value duration -> setParameter (index, value) duration store
+    SetExternalParameter2 (i0, i1) (f0, f1) duration -> setParameterPairs duration store [(i0, f0), (i1, f1)]
+    SetExternalParameter3 (i0, i1, i2) (f0, f1, f2) duration -> setParameterPairs duration store [(i0, f0), (i1, f1), (i2, f2)]
     Exit -> markClosed store
+
+setParameterPairs :: Float -> StreamStateStore -> [(Int, Float)] -> StreamStateStore
+setParameterPairs duration = foldr (\pair store -> setParameter pair duration store)

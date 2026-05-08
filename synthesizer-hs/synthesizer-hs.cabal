@@ -64,6 +64,7 @@ library synthesizer-hs-lib
                          ParameterStore
                          PlayInterleave
                          SoundStream
+                         Spatial
                          StreamState
                          StreamStateStore
                          Utils

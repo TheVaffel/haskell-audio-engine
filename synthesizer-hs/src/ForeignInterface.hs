@@ -5,16 +5,19 @@ insertAndForgetMarker = 1 :: Int
 stopAtIndexMarker = 2 :: Int
 exitMarker = 3 :: Int
 setExternalParameterMarker = 4 :: Int
-sineGeneratorMarker = 5 :: Int
-sineGeneratorWithFrequencyMarker = 6 :: Int
-modulateOpMarker = 7 :: Int
-mixOpMarker = 8 :: Int
-envelopeMarker = 9 :: Int
-volumeMarker = 10 :: Int
-bellMarker = 11 :: Int
-externalParameterMarker = 12 :: Int
-customMarker = 13 :: Int
-custom2Marker = 14 :: Int
+setExternalParameter2Marker = 5 :: Int
+setExternalParameter3Marker = 6 :: Int
+sineGeneratorMarker = 7 :: Int
+sineGeneratorWithFrequencyMarker = 8 :: Int
+modulateOpMarker = 9 :: Int
+mixOpMarker = 10 :: Int
+envelopeMarker = 11 :: Int
+volumeMarker = 12 :: Int
+distanceFactorMarker = 13 :: Int
+bellMarker = 14 :: Int
+externalParameterMarker = 15 :: Int
+customMarker = 16 :: Int
+custom2Marker = 17 :: Int
 
 
 data AudioCommand = InsertAtIndex !Int !AudioGenerator
@@ -22,6 +25,8 @@ data AudioCommand = InsertAtIndex !Int !AudioGenerator
     | StopAtIndex !Int
     | Exit 
     | SetExternalParameter !Int !Float !Float
+    | SetExternalParameter2 !(Int, Int) !(Float, Float) !Float
+    | SetExternalParameter3 !(Int, Int, Int) !(Float, Float, Float) !Float
     deriving Show
 
 data AudioGenerator = SineGenerator !AudioGenerator
@@ -30,9 +35,14 @@ data AudioGenerator = SineGenerator !AudioGenerator
     | MixOp !AudioGenerator !AudioGenerator
     | Envelope !Float !Float !Float
     | Volume !Float !AudioGenerator
+    | DistanceFactor !(Int, Int, Int) !AudioGenerator
     | Bell !Float
     | ExternalParameter !Int
     | Custom !Float
     | Custom2 !Float
     | NoGenerator
     deriving Show
+
+paramIndexListenerX = -1000 :: Float
+paramIndexListenerY = -1001 :: Float
+paramIndexListenerZ = -1002 :: Float

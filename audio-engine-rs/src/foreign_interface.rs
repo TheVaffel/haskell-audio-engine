@@ -5,16 +5,19 @@ pub enum NumericCommand {
     StopAtIndex = 2,
     Exit = 3,
     SetExternalParameter = 4,
-    SineGenerator = 5,
-    SineGeneratorWithFrequency = 6,
-    ModulateOp = 7,
-    MixOp = 8,
-    Envelope = 9,
-    Volume = 10,
-    Bell = 11,
-    ExternalParameter = 12,
-    Custom = 13,
-    Custom2 = 14,
+    SetExternalParameter2 = 5,
+    SetExternalParameter3 = 6,
+    SineGenerator = 7,
+    SineGeneratorWithFrequency = 8,
+    ModulateOp = 9,
+    MixOp = 10,
+    Envelope = 11,
+    Volume = 12,
+    DistanceFactor = 13,
+    Bell = 14,
+    ExternalParameter = 15,
+    Custom = 16,
+    Custom2 = 17,
 }
 
 #[derive(Clone)]
@@ -24,6 +27,8 @@ pub enum AudioCommand {
     StopAtIndex(u32),
     Exit,
     SetExternalParameter(u32,f32,f32),
+    SetExternalParameter2((i32, i32),(f32, f32),f32),
+    SetExternalParameter3((i32, i32, i32),(f32, f32, f32),f32),
 }
 
 #[derive(Clone)]
@@ -34,8 +39,13 @@ pub enum AudioGenerator {
     MixOp(Box<AudioGenerator>,Box<AudioGenerator>),
     Envelope(f32,f32,f32),
     Volume(f32,Box<AudioGenerator>),
+    DistanceFactor((i32, i32, i32),Box<AudioGenerator>),
     Bell(f32),
-    ExternalParameter(u32),
+    ExternalParameter(i32),
     Custom(f32),
     Custom2(f32),
 }
+
+pub const LISTENER_X_PARAM_INDEX: f32 = -1000.0;
+pub const LISTENER_Y_PARAM_INDEX: f32 = -1001.0;
+pub const LISTENER_Z_PARAM_INDEX: f32 = -1002.0;

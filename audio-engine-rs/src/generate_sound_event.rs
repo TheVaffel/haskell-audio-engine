@@ -34,6 +34,32 @@ impl<'a> SerializableCommand for AudioCommand {
                 result.push(*value);
                 result.push(*interp_time);
             }
+            AudioCommand::SetExternalParameter2(
+                (index0, index1),
+                (value0, value1),
+                interp_time,
+            ) => {
+                write_command_marker(NumericCommand::SetExternalParameter2, result);
+                result.push(*index0 as ElementType);
+                result.push(*index1 as ElementType);
+                result.push(*value0);
+                result.push(*value1);
+                result.push(*interp_time);
+            }
+            AudioCommand::SetExternalParameter3(
+                (index0, index1, index2),
+                (value0, value1, value2),
+                interp_time,
+            ) => {
+                write_command_marker(NumericCommand::SetExternalParameter2, result);
+                result.push(*index0 as ElementType);
+                result.push(*index1 as ElementType);
+                result.push(*index2 as ElementType);
+                result.push(*value0);
+                result.push(*value1);
+                result.push(*value2);
+                result.push(*interp_time);
+            }
         }
     }
 }
@@ -68,6 +94,13 @@ impl<'a> SerializableCommand for AudioGenerator {
             AudioGenerator::Volume(volume, signal) => {
                 write_command_marker(NumericCommand::Volume, result);
                 result.push(*volume);
+                signal.serialize_append(result);
+            }
+            AudioGenerator::DistanceFactor((ix, iy, iz), signal) => {
+                write_command_marker(NumericCommand::DistanceFactor, result);
+                result.push(*ix as f32);
+                result.push(*iy as f32);
+                result.push(*iz as f32);
                 signal.serialize_append(result);
             }
             AudioGenerator::Bell(freq) => {

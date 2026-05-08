@@ -71,8 +71,8 @@ deleteStream index store =
           store { streamMap = Map.delete index (streamMap store),
                   unmanagedStreams = prevUnmanagedStream `mix` fadingOutStream }
 
-setParameter :: (Int, ElementType, ElementType) -> StreamStateStore -> StreamStateStore
-setParameter (index, value, duration) store =
+setParameter :: (Int, ElementType) -> ElementType -> StreamStateStore -> StreamStateStore
+setParameter (index, value) duration store =
   let previousParameter = fromMaybe zeroSignal (parameterMap store Map.!? index)
       newParameter = line defaultLazySize (round (duration * sampleRateF)) (SigG.index previousParameter 0, value) <> constant defaultLazySize value
   in
