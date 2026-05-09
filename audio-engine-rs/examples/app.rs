@@ -1,7 +1,8 @@
 use std::time::Duration;
 
-use throttle::Throttle;
-use winit::event_loop::{ControlFlow, EventLoop};
+use debounce::EventDebouncer;
+use winit::dpi::PhysicalPosition;
+use winit::event_loop::{ControlFlow, EventLoop, EventLoopProxy};
 
 use winit::{
     application::ApplicationHandler,
@@ -16,41 +17,71 @@ use audio_engine_rs::{
     stop_at_index, write_command, AudioCommand, AudioGenerator, CircularBuffer,
 };
 
+#[derive(PartialEq)]
+enum DebounceEvent {
+    MouseMove(PhysicalPosition<f64>),
+}
+
+enum UserEvent {
+    Debounced(DebounceEvent),
+}
+
 fn main() {
-    let event_loop = EventLoop::new().unwrap();
+    let event_loop = EventLoop::<UserEvent>::with_user_event().build().unwrap();
     event_loop.set_control_flow(ControlFlow::Wait);
 
     let sound_event_buffer = create_sound_buffer();
 
-    let mut app = App::new(sound_event_buffer);
+    let mut app = App::new(sound_event_buffer, event_loop.create_proxy());
     let _ = event_loop.run_app(&mut app);
 }
 
-pub struct App {
+struct App {
     window: Option<Window>,
     sound_event_buffer: Box<CircularBuffer>,
     shift_pressed: bool,
-    mouse_event_throttle: Throttle,
+    event_debounce: EventDebouncer<DebounceEvent>,
 }
 
 impl App {
-    pub fn new(sound_event_buffer: Box<CircularBuffer>) -> Self {
+    pub fn new(
+        sound_event_buffer: Box<CircularBuffer>,
+        event_loop_proxy: EventLoopProxy<UserEvent>,
+    ) -> Self {
+        let loop_clone = event_loop_proxy.clone();
         Self {
             window: None,
             sound_event_buffer,
             shift_pressed: false,
-            mouse_event_throttle: Throttle::new(Duration::from_millis(100), 2),
+            event_debounce: EventDebouncer::new(Duration::from_millis(20), move |debounce_event| {
+                let _ = loop_clone.send_event(UserEvent::Debounced(debounce_event));
+            }),
         }
     }
 }
 
-impl ApplicationHandler for App {
+impl ApplicationHandler<UserEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.window = Some(
             event_loop
                 .create_window(Window::default_attributes())
                 .unwrap(),
         );
+    }
+
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
+        if let Some(ref window) = self.window {
+            match event {
+                UserEvent::Debounced(debounced_event) => match debounced_event {
+                    DebounceEvent::MouseMove(position) => set_parameter(
+                        0,
+                        position.y as f32 / window.outer_size().height as f32 * 40.0 + 400.0,
+                        0.100,
+                        &mut self.sound_event_buffer,
+                    ),
+                },
+            }
+        }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
@@ -172,18 +203,7 @@ impl ApplicationHandler for App {
             WindowEvent::CursorMoved {
                 device_id: _device,
                 position,
-            } => {
-                let throttle_ready = self.mouse_event_throttle.accept();
-                match (throttle_ready, &self.window) {
-                    (Ok(_), &Some(ref window)) => set_parameter(
-                        0,
-                        position.y as f32 / window.outer_size().height as f32 * 400.0 + 40.0,
-                        0.100,
-                        &mut self.sound_event_buffer,
-                    ),
-                    _ => {}
-                }
-            }
+            } => self.event_debounce.put(DebounceEvent::MouseMove(position)),
             _ => (),
         }
     }

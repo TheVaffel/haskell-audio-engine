@@ -9,7 +9,7 @@ winit = "0.30.11"
 
 [dev-dependencies]
 
-throttle = "0.1.0"
+debounce = "0.2.2"
 
 [profile.dev]
 rpath = true
